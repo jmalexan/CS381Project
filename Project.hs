@@ -2,10 +2,10 @@ module Project where
 -- Description: Final Project for CS 381 Winter 2020
 -- Authors:
 --  > Faaiq Waqar (onid)
---  > Jonathan Alexander (onid)
+--  > Jonathan Alexander (alexajon)
 --  > Julian Fortune (fortunej)
 
-import qualified Data.HashMap.Strict as Map
+import qualified Data.Map.Strict as Map
 -- Library for associating keys with values.
 --
 -- I believe this is the best version for us because:
@@ -21,16 +21,96 @@ import qualified Data.HashMap.Strict as Map
 -- | Julian's experiments with HashMap
 
 -- Holds different literal/storable types that could be in a variable
-data Value = Int Integer | Str String | Flt Float
+
+
+-- data Value = Int Integer | Str String | Flt Float
+--     deriving Show
+
+-- -- Maps a string (variable name) to a `Value`
+-- type Association = Map.HashMap String Value
+
+-- exampleHashMap :: Association
+-- exampleHashMap =  ( Map.insert "c" (Flt 3.14159) .
+--                     Map.insert "b" (Str "hello, world!") .
+--                     Map.insert "a" (Int 6) ) Map.empty
+
+-- exampleLookup :: Maybe Value
+-- exampleLookup =  Map.lookup "b" exampleHashMap
+
+
+
+
+
+data VarVal = Int Integer | Flt Float | Boolean Bool
     deriving Show
 
--- Maps a string (variable name) to a `Value`
-type Association = Map.HashMap String Value
+type VarAssociation = Map.Map String VarVal
+data FuncData = FuncDataCon [String] Prog
+type FuncAssociation = Map.Map String FuncData
 
-exampleHashMap :: Association
-exampleHashMap =  ( Map.insert "c" (Flt 3.14159) .
-                    Map.insert "b" (Str "hello, world!") .
-                    Map.insert "a" (Int 6) ) Map.empty
+data Expr = ExprSum Expr Expr
+          | ExprSub Expr Expr
+          | ExprMul Expr Expr
+          | ExprDiv Expr Expr
+          | ExprLT Expr Expr
+          | ExprGT Expr Expr
+          | ExprEQ Expr Expr
+          | ExprNE Expr Expr
+          | ExprVar String
+          | ExprVal VarVal
+          | ExprFunc String [Expr]
 
-exampleLookup :: Maybe Value
-exampleLookup =  Map.lookup "b" exampleHashMap
+data Cmd = Def String FuncData
+         | Set String Expr
+         | If Expr Prog
+         | While Expr Prog
+         | Return Expr
+
+type Prog = [Cmd]
+
+data State = ProgState VarAssociation FuncAssociation Prog
+
+mainProg :: Prog
+mainProg = [Set "x" (ExprVal (Int 3)), Return (ExprVar "x")]
+
+mainState :: State
+mainState = ProgState Map.empty Map.empty mainProg
+
+-- Builds a new state object for use in a function call.  Takes arguments in this order: current program state, list of expr to fill args, list of arg names, empty var map (to be built), function definitions (to be passed), program block to execute
+buildFuncState :: State -> [Expr] -> [String] -> VarAssociation -> FuncAssociation -> Prog -> State
+buildFuncState _ [] [] vars funcs p = ProgState vars funcs p
+buildFuncState oldstate (x:xs) (s:ss) vars funcs p = buildFuncState oldstate xs ss (Map.insert s (exprEval oldstate x) vars) funcs p
+
+-- Utility function to get a prog block out of the function map data
+getFuncProg :: FuncData -> Prog
+getFuncProg (FuncDataCon _ prog) = prog
+
+-- Utility function to get an arg name list out of the function map data
+getFuncArgs :: FuncData -> [String]
+getFuncArgs (FuncDataCon args _) = args
+
+-- Recursive function that takes any Expr and converts it to some value.  needs state to properly evaluate variables and functions.
+exprEval :: State -> Expr -> VarVal
+-- exprEval oldstate (ExprSum expr1 expr2) = (exprEval oldstate expr1) + (exprEval oldstate expr2)
+-- exprEval oldstate (ExprSub expr1 expr2) = (exprEval oldstate expr1) - (exprEval oldstate expr2)
+-- exprEval oldstate (ExprMul expr1 expr2) = (exprEval oldstate expr1) * (exprEval oldstate expr2)
+-- exprEval oldstate (ExprDiv expr1 expr2) = (exprEval oldstate expr1) / (exprEval oldstate expr2)
+-- exprEval oldstate (ExprLT expr1 expr2) = (exprEval oldstate expr1) < (exprEval oldstate expr2)
+-- exprEval oldstate (ExprGT expr1 expr2) = (exprEval oldstate expr1) > (exprEval oldstate expr2)
+-- exprEval oldstate (ExprEQ expr1 expr2) = (exprEval oldstate expr1) == (exprEval oldstate expr2)
+-- exprEval oldstate (ExprNE expr1 expr2) = (exprEval oldstate expr1) /= (exprEval oldstate expr2)
+exprEval (ProgState vars _ _) (ExprVar name) = case Map.lookup name vars of Just val -> val
+exprEval _ (ExprVal val) = val
+exprEval (ProgState vars funcs p) (ExprFunc name args) = case Map.lookup name funcs of Just func -> prog (buildFuncState (ProgState vars funcs p) args (getFuncArgs func) Map.empty funcs (getFuncProg func))
+
+-- Evaluate currently executing command.  Loops and Conditionals are handled by injecting commands onto the current state's program.
+cmd :: State -> Cmd -> State
+cmd (ProgState vars funcs p) (Def name funcdata) = ProgState vars (Map.insert name funcdata funcs) p
+cmd (ProgState vars funcs p) (Set name val) = ProgState (Map.insert name (exprEval (ProgState vars funcs p) val) vars) funcs p
+cmd (ProgState vars funcs p) (If condition block) = case exprEval (ProgState vars funcs p) condition of Boolean True -> ProgState vars funcs (block ++ p)
+cmd (ProgState vars funcs p) (While condition block) = case exprEval (ProgState vars funcs p) condition of Boolean True -> ProgState vars funcs (block ++ [While condition block] ++ p)
+
+prog :: State -> VarVal
+prog (ProgState _ _ []) = Boolean False --base case
+prog (ProgState vars funcs ((Return expr1):xs)) = exprEval (ProgState vars funcs xs) expr1
+prog (ProgState vars funcs (x:xs)) = prog (cmd (ProgState vars funcs xs) x)
