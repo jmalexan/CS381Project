@@ -39,7 +39,7 @@ import qualified Data.Map.Strict as Map
 
 
 
-data VarVal = Int Integer | Flt Float | Boolean Bool | Str String
+data VarVal = Int Integer | Flt Float | Boolean Bool
     deriving Show
 
 type VarAssociation = Map.Map String VarVal
@@ -91,7 +91,6 @@ getFuncArgs (FuncDataCon args _) = args
 exprEval :: State -> Expr -> VarVal
 exprEval oldstate (ExprSum expr1 expr2) = case exprEval oldstate expr1 of Int x -> case exprEval oldstate expr2 of Int y -> Int (x + y)
                                                                           Flt x -> case exprEval oldstate expr2 of Flt y -> Flt (x + y)
-                                                                          Str x -> case exprEval oldstate expr2 of Str y -> Str (x ++ y)
 exprEval oldstate (ExprSub expr1 expr2) = case exprEval oldstate expr1 of Int x -> case exprEval oldstate expr2 of Int y -> Int (x - y)
                                                                           Flt x -> case exprEval oldstate expr2 of Flt y -> Flt (x - y)
 exprEval oldstate (ExprMul expr1 expr2) = case exprEval oldstate expr1 of Int x -> case exprEval oldstate expr2 of Int y -> Int (x * y)
@@ -110,7 +109,6 @@ exprEval oldstate (ExprNE expr1 expr2) = case exprEval oldstate expr1 of Int x -
                                                                          Boolean x -> case exprEval oldstate expr2 of Boolean y -> Boolean (x /= y)
 exprEval (ProgState vars _ _) (ExprVar name) = case Map.lookup name vars of Just val -> val
 exprEval _ (ExprVal val) = val
-exprEval _ (ExprVar str) = Str str
 exprEval (ProgState vars funcs p) (ExprFunc name args) = case Map.lookup name funcs of Just func -> prog (buildFuncState (ProgState vars funcs p) args (getFuncArgs func) Map.empty funcs (getFuncProg func))
 
 -- Evaluate currently executing command.  Loops and Conditionals are handled by injecting commands onto the current state's program.
