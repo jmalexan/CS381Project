@@ -71,7 +71,7 @@ type Prog = [Cmd]
 data State = ProgState VarAssociation FuncAssociation Prog
 
 mainProg :: Prog
-mainProg = [Set "x" (ExprVal (Int 3)), Return (ExprVar "x")]
+mainProg = [Set "x" (ExprVal (Int 3)), Def "test" (FuncDataCon ["asdf"] [Set "b" (ExprSum (ExprVal (Int 777)) (ExprVar "asdf")), Set "b" (ExprDiv (ExprVar "b") (ExprVal (Int 2))), Return (ExprVar "b")]), Set "x" (ExprFunc "test" [ExprVar "x"]), If (ExprEQ (ExprVar "x") (ExprVal (Int 381))) [Set "x" (ExprVal (Boolean True))], Return (ExprVar "x")]
 
 mainState :: State
 mainState = ProgState Map.empty Map.empty mainProg
@@ -91,14 +91,24 @@ getFuncArgs (FuncDataCon args _) = args
 
 -- Recursive function that takes any Expr and converts it to some value.  needs state to properly evaluate variables and functions.
 exprEval :: State -> Expr -> VarVal
--- exprEval oldstate (ExprSum expr1 expr2) = (exprEval oldstate expr1) + (exprEval oldstate expr2)
--- exprEval oldstate (ExprSub expr1 expr2) = (exprEval oldstate expr1) - (exprEval oldstate expr2)
--- exprEval oldstate (ExprMul expr1 expr2) = (exprEval oldstate expr1) * (exprEval oldstate expr2)
--- exprEval oldstate (ExprDiv expr1 expr2) = (exprEval oldstate expr1) / (exprEval oldstate expr2)
--- exprEval oldstate (ExprLT expr1 expr2) = (exprEval oldstate expr1) < (exprEval oldstate expr2)
--- exprEval oldstate (ExprGT expr1 expr2) = (exprEval oldstate expr1) > (exprEval oldstate expr2)
--- exprEval oldstate (ExprEQ expr1 expr2) = (exprEval oldstate expr1) == (exprEval oldstate expr2)
--- exprEval oldstate (ExprNE expr1 expr2) = (exprEval oldstate expr1) /= (exprEval oldstate expr2)
+exprEval oldstate (ExprSum expr1 expr2) = case exprEval oldstate expr1 of Int x -> case exprEval oldstate expr2 of Int y -> Int (x + y)
+                                                                          Flt x -> case exprEval oldstate expr2 of Flt y -> Flt (x + y)
+exprEval oldstate (ExprSub expr1 expr2) = case exprEval oldstate expr1 of Int x -> case exprEval oldstate expr2 of Int y -> Int (x - y)
+                                                                          Flt x -> case exprEval oldstate expr2 of Flt y -> Flt (x - y)
+exprEval oldstate (ExprMul expr1 expr2) = case exprEval oldstate expr1 of Int x -> case exprEval oldstate expr2 of Int y -> Int (x * y)
+                                                                          Flt x -> case exprEval oldstate expr2 of Flt y -> Flt (x * y)
+exprEval oldstate (ExprDiv expr1 expr2) = case exprEval oldstate expr1 of Int x -> case exprEval oldstate expr2 of Int y -> Int (div x y)
+                                                                          Flt x -> case exprEval oldstate expr2 of Flt y -> Flt (x / y)
+exprEval oldstate (ExprLT expr1 expr2) = case exprEval oldstate expr1 of Int x -> case exprEval oldstate expr2 of Int y -> Boolean (x < y)
+                                                                         Flt x -> case exprEval oldstate expr2 of Flt y -> Boolean (x < y)
+exprEval oldstate (ExprGT expr1 expr2) = case exprEval oldstate expr1 of Int x -> case exprEval oldstate expr2 of Int y -> Boolean (x > y)
+                                                                         Flt x -> case exprEval oldstate expr2 of Flt y -> Boolean (x > y)
+exprEval oldstate (ExprEQ expr1 expr2) = case exprEval oldstate expr1 of Int x -> case exprEval oldstate expr2 of Int y -> Boolean (x == y)
+                                                                         Flt x -> case exprEval oldstate expr2 of Flt y -> Boolean (x == y)
+                                                                         Boolean x -> case exprEval oldstate expr2 of Boolean y -> Boolean (x == y)
+exprEval oldstate (ExprNE expr1 expr2) = case exprEval oldstate expr1 of Int x -> case exprEval oldstate expr2 of Int y -> Boolean (x /= y)
+                                                                         Flt x -> case exprEval oldstate expr2 of Flt y -> Boolean (x /= y)
+                                                                         Boolean x -> case exprEval oldstate expr2 of Boolean y -> Boolean (x /= y)
 exprEval (ProgState vars _ _) (ExprVar name) = case Map.lookup name vars of Just val -> val
 exprEval _ (ExprVal val) = val
 exprEval (ProgState vars funcs p) (ExprFunc name args) = case Map.lookup name funcs of Just func -> prog (buildFuncState (ProgState vars funcs p) args (getFuncArgs func) Map.empty funcs (getFuncProg func))
@@ -108,7 +118,9 @@ cmd :: State -> Cmd -> State
 cmd (ProgState vars funcs p) (Def name funcdata) = ProgState vars (Map.insert name funcdata funcs) p
 cmd (ProgState vars funcs p) (Set name val) = ProgState (Map.insert name (exprEval (ProgState vars funcs p) val) vars) funcs p
 cmd (ProgState vars funcs p) (If condition block) = case exprEval (ProgState vars funcs p) condition of Boolean True -> ProgState vars funcs (block ++ p)
+                                                                                                        Boolean False -> ProgState vars funcs p
 cmd (ProgState vars funcs p) (While condition block) = case exprEval (ProgState vars funcs p) condition of Boolean True -> ProgState vars funcs (block ++ [While condition block] ++ p)
+                                                                                                           Boolean False -> ProgState vars funcs p
 
 prog :: State -> VarVal
 prog (ProgState _ _ []) = Boolean False --base case
