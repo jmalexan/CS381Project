@@ -1,7 +1,7 @@
 module Project where
 -- Description: Final Project for CS 381 Winter 2020
 -- Authors:
---  > Faaiq Waqar (onid)
+--  > Faaiq Waqar (waqarf)
 --  > Jonathan Alexander (alexajon)
 --  > Julian Fortune (fortunej)
 
