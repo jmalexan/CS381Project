@@ -61,6 +61,26 @@ mainProg =
 mainState :: State
 mainState = ProgState Map.empty Map.empty mainProg
 
+badProg :: Prog
+badProg =
+  [ Set "x" (ExprVal (Int 3))
+  , Def
+    "test"
+    (FuncDataCon
+      ["asdf"]
+      [ Set "b" (ExprSum (ExprVal (Int 777)) (ExprVar "asdf"))
+      , Set "b" (ExprDiv (ExprVar "b") (ExprVal (Float 2)))
+      , Return (ExprVar "b")
+      ]
+    )
+  , Set "x" (ExprFunc "test" [ExprVar "x"])
+  , If (ExprEQ (ExprVar "x") (ExprVal (Int 381)))
+       [Set "x" (ExprVal (Boolean True))]
+  , Return (ExprVar "x")
+  ]
+  
+badState :: State
+badState = ProgState Map.empty Map.empty mainProg
 
 -- Builds a new state object for use in a function call.  Takes arguments in this order: current program state, list of expr to fill args, list of arg names, empty var map (to be built), function definitions (to be passed), program block to execute
 buildFuncState
