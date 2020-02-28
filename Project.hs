@@ -69,7 +69,7 @@ badProg =
     (FuncDataCon
       ["asdf"]
       [ Set "b" (ExprSum (ExprVal (Int 777)) (ExprVar "asdf"))
-      , Set "b" (ExprDiv (ExprVar "b") (ExprVal (Float 2)))
+      , Set "b" (ExprDiv (ExprVar "b") (ExprVal (Flt 2)))
       , Return (ExprVar "b")
       ]
     )
@@ -78,9 +78,9 @@ badProg =
        [Set "x" (ExprVal (Boolean True))]
   , Return (ExprVar "x")
   ]
-  
+
 badState :: State
-badState = ProgState Map.empty Map.empty mainProg
+badState = ProgState Map.empty Map.empty badProg
 
 -- Builds a new state object for use in a function call.  Takes arguments in this order: current program state, list of expr to fill args, list of arg names, empty var map (to be built), function definitions (to be passed), program block to execute
 buildFuncState
