@@ -6,6 +6,7 @@ module Project where
 --  > Julian Fortune (fortunej)
 
 import qualified Data.Map.Strict as Map
+import Data.Maybe
 -- Library for associating keys with values.
 --
 -- I believe this is the best version for us because:
@@ -40,6 +41,9 @@ import qualified Data.Map.Strict as Map
 
 
 data VarVal = Int Integer | Flt Float | Boolean Bool
+    deriving Show
+
+data CompVal = Loaded | Syntaxerror | Datatypeerror
     deriving Show
 
 type VarAssociation = Map.Map String VarVal
@@ -124,3 +128,5 @@ prog :: State -> VarVal
 prog (ProgState _ _ []) = Boolean False --base case
 prog (ProgState vars funcs ((Return expr1):xs)) = exprEval (ProgState vars funcs xs) expr1
 prog (ProgState vars funcs (x:xs)) = prog (cmd (ProgState vars funcs xs) x)
+
+compile :: Prog -> CompVal
