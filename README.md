@@ -22,7 +22,7 @@ Static type system : A user attempting to write and use code in the programming 
 1. Open Via GHCI
 2. Load the file 'Program.hs'
 3. Testing Good Input: prog mainState
-4. Testing Bad Input:
+4. Testing Bad Input: prog badState
 
 
 ## Todo:
