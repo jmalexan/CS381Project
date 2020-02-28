@@ -21,14 +21,17 @@ Static type system : A user attempting to write and use code in the programming 
 ## Execution Instructions
 1. Open Via GHCI
 2. Load the file 'Program.hs'
-3. Testing Good Input: prog mainState
-4. Testing Bad Input: prog badState
+3. Testing Good Input: `*Project> prog mainState`
+4. Testing Bad Input: `*Project> prog badState`
 
 
 ## Todo:
-- Develop the abstract syntax (grammar)
-- Create semantic domain
-- Write example functions for testing
+- Develop Static Type system
+- Simplify core features
+- Add lists
 
 ## Done
 - Learn how to use Map
+- Develop the abstract syntax (grammar)
+- Create semantic domain
+- Write example functions for testing
