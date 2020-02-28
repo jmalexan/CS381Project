@@ -130,3 +130,21 @@ prog (ProgState vars funcs ((Return expr1):xs)) = exprEval (ProgState vars funcs
 prog (ProgState vars funcs (x:xs)) = prog (cmd (ProgState vars funcs xs) x)
 
 compile :: Prog -> CompVal
+compile ((Def str fnc):xs) = 
+compile ((Set str exp):xs) = 
+compile ((If exp nprog):xs) = 
+compile ((While exp nprog):xs) = 
+compile ((Return exp):xs) = 
+
+fncParser :: FuncData -> CompVal
+
+expParser :: Expr -> CompVal
+expParser (_ (Int x1) (Int x2)) = Loaded
+expParser (_ (Flt x1) (Int x2)) = Datatypeerror
+expParser (_ (Int x1) (Flt x2)) = Datatypeerror
+expParser (_ (Flt x1) (Flt x2)) = Loaded
+expParser (_ (Boolean x1) (Flt x2)) = Datatypeerror
+expParser (_ (Flt x1) (Boolean x2)) = Datatypeerror
+expParser (_ (Boolean x1) (Boolean x2)) = Loaded
+expParser (_ (Int x1) (Boolean x2)) = Datatypeerror
+expParser (_ (Boolean x1) (Int x2)) = Datatypeerror
