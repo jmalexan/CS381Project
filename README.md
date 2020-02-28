@@ -1,5 +1,5 @@
 # CS 381 Final Project for Winter 2020
-Jonathan Alexander, Julian Fortune, Faaiq Waqar
+Jonathan Alexander (alexajon), Julian Fortune (fortunej), Faaiq Waqar (waqarf)
 
 ## Introduction to Programming Language
 Welcome to Barely Functional-C! This is an Imperative Programming Language with the following features:
