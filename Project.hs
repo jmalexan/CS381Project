@@ -129,6 +129,9 @@ prog (ProgState _ _ []) = Boolean False --base case
 prog (ProgState vars funcs ((Return expr1):xs)) = exprEval (ProgState vars funcs xs) expr1
 prog (ProgState vars funcs (x:xs)) = prog (cmd (ProgState vars funcs xs) x)
 
+-- Compile the language to check for semantic errors that may occur such as datatype and syntax errors
+-- Compile - Primary function evaluating commands from a program
+
 compile :: Prog -> CompVal
 compile ((Def str fnc):xs) = 
 compile ((Set str exp):xs) = 
@@ -136,7 +139,12 @@ compile ((If exp nprog):xs) =
 compile ((While exp nprog):xs) = 
 compile ((Return exp):xs) = 
 
+-- FncParser - Submodule used to parse through Functions and Function Data
+
 fncParser :: FuncData -> CompVal
+fncParser = 
+
+-- ExpParser - Submodule used to parse through Expressions and Match Data
 
 expParser :: Expr -> CompVal
 expParser (_ (Int x1) (Int x2)) = Loaded
@@ -148,3 +156,9 @@ expParser (_ (Flt x1) (Boolean x2)) = Datatypeerror
 expParser (_ (Boolean x1) (Boolean x2)) = Loaded
 expParser (_ (Int x1) (Boolean x2)) = Datatypeerror
 expParser (_ (Boolean x1) (Int x2)) = Datatypeerror
+
+-- IsLoaded - Submodule used to return boolean :: Useful for Combining Parsers
+
+isLoaded :: CompVal -> Bool
+isLoaded (Loaded) = True
+isLoaded _ = False
