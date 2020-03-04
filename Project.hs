@@ -7,6 +7,9 @@ module Project where
 
 import qualified Data.Map.Strict               as Map
 import           Data.Maybe
+import           Prelude                 hiding ( EQ
+                                                , LT
+                                                )
 
 data VarVal = Int Integer | Flt Float | Boolean Bool
     deriving Show
@@ -18,14 +21,14 @@ type VarAssociation = Map.Map String VarVal
 data FuncData = FuncDataCon [String] Prog
 type FuncAssociation = Map.Map String FuncData
 
-data Expr = ExprSum Expr Expr
-          | ExprSub Expr Expr
-          | ExprMul Expr Expr
-          | ExprDiv Expr Expr
-          | ExprLT Expr Expr
-          | ExprGT Expr Expr
-          | ExprEQ Expr Expr
-          | ExprNE Expr Expr
+-- Numeric (only works for Floats and Ints) operations
+data NumOp = Add | Sub | Mul | Div
+
+-- Operations on numeric values that produce a boolean value
+data BinOp = LT | EQ
+
+data Expr = ExprNumOp NumOp Expr Expr
+          | ExprBinOp BinOp Expr Expr
           | ExprVar String
           | ExprVal VarVal
           | ExprFunc String [Expr]
@@ -40,6 +43,19 @@ type Prog = [Cmd]
 
 data State = ProgState VarAssociation FuncAssociation Prog
 
+-- *
+-- * Syntactic sugar
+-- *
+
+exprSum :: Expr -> Expr -> Expr
+exprSum = ExprNumOp Add
+
+exprDiv :: Expr -> Expr -> Expr
+exprDiv = ExprNumOp Div
+
+exprEQ :: Expr -> Expr -> Expr
+exprEQ = ExprBinOp EQ
+
 mainProg :: Prog
 mainProg =
   [ Set "x" (ExprVal (Int 3))
@@ -47,13 +63,13 @@ mainProg =
     "test"
     (FuncDataCon
       ["asdf"]
-      [ Set "b" (ExprSum (ExprVal (Int 777)) (ExprVar "asdf"))
-      , Set "b" (ExprDiv (ExprVar "b") (ExprVal (Int 2)))
+      [ Set "b" (exprSum (ExprVal (Int 777)) (ExprVar "asdf"))
+      , Set "b" (exprDiv (ExprVar "b") (ExprVal (Int 2)))
       , Return (ExprVar "b")
       ]
     )
   , Set "x" (ExprFunc "test" [ExprVar "x"])
-  , If (ExprEQ (ExprVar "x") (ExprVal (Int 381)))
+  , If (exprDiv (ExprVar "x") (ExprVal (Int 381)))
        [Set "x" (ExprVal (Boolean True))]
   , Return (ExprVar "x")
   ]
@@ -68,13 +84,13 @@ badProg =
     "test"
     (FuncDataCon
       ["asdf"]
-      [ Set "b" (ExprSum (ExprVal (Int 777)) (ExprVar "asdf"))
-      , Set "b" (ExprDiv (ExprVar "b") (ExprVal (Flt 2)))
+      [ Set "b" (exprSum (ExprVal (Int 777)) (ExprVar "asdf"))
+      , Set "b" (exprDiv (ExprVar "b") (ExprVal (Flt 2)))
       , Return (ExprVar "b")
       ]
     )
   , Set "x" (ExprFunc "test" [ExprVar "x"])
-  , If (ExprEQ (ExprVar "x") (ExprVal (Int 381)))
+  , If (exprEQ (ExprVar "x") (ExprVal (Int 381)))
        [Set "x" (ExprVal (Boolean True))]
   , Return (ExprVar "x")
   ]
@@ -108,52 +124,42 @@ getFuncProg (FuncDataCon _ prog) = prog
 getFuncArgs :: FuncData -> [String]
 getFuncArgs (FuncDataCon args _) = args
 
+-- Applies a numeric operataion to a pair of Floats
+floatOpEval :: NumOp -> Float -> Float -> VarVal
+floatOpEval Add x y = Flt (x + y)
+floatOpEval Sub x y = Flt (x - y)
+floatOpEval Mul x y = Flt (x * y)
+floatOpEval Div x y = Flt (x / y)
+
+-- Applies a numeric operataion to a pair of Ints
+intOpEval :: NumOp -> Integer -> Integer -> VarVal
+intOpEval Add x y = Int (x + y)
+intOpEval Sub x y = Int (x - y)
+intOpEval Mul x y = Int (x * y)
+intOpEval Div x y = Int (div x y) -- Force integer division
+
+floatBinOpEval :: BinOp -> Float -> Float -> VarVal
+floatBinOpEval LT x y = Boolean (x < y)
+floatBinOpEval EQ x y = Boolean (x == y)
+
+intBinOpEval :: BinOp -> Integer -> Integer -> VarVal
+intBinOpEval LT x y = Boolean (x < y)
+intBinOpEval EQ x y = Boolean (x == y)
+
 -- Recursive function that takes any Expr and converts it to some value.  needs state to properly evaluate variables and functions.
 exprEval :: State -> Expr -> VarVal
-exprEval oldstate (ExprSum expr1 expr2) = case exprEval oldstate expr1 of
-  Int x -> case exprEval oldstate expr2 of
-    Int y -> Int (x + y)
-  Flt x -> case exprEval oldstate expr2 of
-    Flt y -> Flt (x + y)
-exprEval oldstate (ExprSub expr1 expr2) = case exprEval oldstate expr1 of
-  Int x -> case exprEval oldstate expr2 of
-    Int y -> Int (x - y)
-  Flt x -> case exprEval oldstate expr2 of
-    Flt y -> Flt (x - y)
-exprEval oldstate (ExprMul expr1 expr2) = case exprEval oldstate expr1 of
-  Int x -> case exprEval oldstate expr2 of
-    Int y -> Int (x * y)
-  Flt x -> case exprEval oldstate expr2 of
-    Flt y -> Flt (x * y)
-exprEval oldstate (ExprDiv expr1 expr2) = case exprEval oldstate expr1 of
-  Int x -> case exprEval oldstate expr2 of
-    Int y -> Int (div x y)
-  Flt x -> case exprEval oldstate expr2 of
-    Flt y -> Flt (x / y)
-exprEval oldstate (ExprLT expr1 expr2) = case exprEval oldstate expr1 of
-  Int x -> case exprEval oldstate expr2 of
-    Int y -> Boolean (x < y)
-  Flt x -> case exprEval oldstate expr2 of
-    Flt y -> Boolean (x < y)
-exprEval oldstate (ExprGT expr1 expr2) = case exprEval oldstate expr1 of
-  Int x -> case exprEval oldstate expr2 of
-    Int y -> Boolean (x > y)
-  Flt x -> case exprEval oldstate expr2 of
-    Flt y -> Boolean (x > y)
-exprEval oldstate (ExprEQ expr1 expr2) = case exprEval oldstate expr1 of
-  Int x -> case exprEval oldstate expr2 of
-    Int y -> Boolean (x == y)
-  Flt x -> case exprEval oldstate expr2 of
-    Flt y -> Boolean (x == y)
-  Boolean x -> case exprEval oldstate expr2 of
-    Boolean y -> Boolean (x == y)
-exprEval oldstate (ExprNE expr1 expr2) = case exprEval oldstate expr1 of
-  Int x -> case exprEval oldstate expr2 of
-    Int y -> Boolean (x /= y)
-  Flt x -> case exprEval oldstate expr2 of
-    Flt y -> Boolean (x /= y)
-  Boolean x -> case exprEval oldstate expr2 of
-    Boolean y -> Boolean (x /= y)
+exprEval oldstate (ExprNumOp oper expr1 expr2) =
+  case exprEval oldstate expr1 of
+    Int x -> case exprEval oldstate expr2 of
+      Int y -> intOpEval oper x y
+    Flt x -> case exprEval oldstate expr2 of
+      Flt y -> floatOpEval oper x y
+exprEval oldstate (ExprBinOp oper expr1 expr2) =
+  case exprEval oldstate expr1 of
+    Int x -> case exprEval oldstate expr2 of
+      Int y -> intBinOpEval oper x y
+    Flt x -> case exprEval oldstate expr2 of
+      Flt y -> floatBinOpEval oper x y
 exprEval (ProgState vars _ _) (ExprVar name) = case Map.lookup name vars of
   Just val -> val
 exprEval _ (ExprVal val) = val
