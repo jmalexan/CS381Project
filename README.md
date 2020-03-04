@@ -1,7 +1,7 @@
 # CS 381 Final Project for Winter 2020
 Jonathan Alexander (alexajon), Julian Fortune (fortunej), Faaiq Waqar (waqarf)
 
-## Introduction to Programming Language
+## Language Overview
 Welcome to Barely Functional-C! This is an Imperative Programming Language with the following features:
 
 Basic data types and operations: There will be Integer, Boolean, and Floating point data types. Integer and Floats each individually support the 4 basic math arithmetic operations (*, /, +, -). The Boolean will have `and`, `or`, and `not` operators. There will be explicit casting between all three types.
@@ -26,9 +26,15 @@ Static type system : A user attempting to write and use code in the programming 
 
 
 ## Todo:
-- Develop Static Type system
-- Simplify core features
-- Add lists
+- Develop Static Type system.
+- Simplify language core by using nested types for constructors that take same number of args.
+- Simplify language core by moving some features to synactic sugar.
+- Add lists.
+- Add simple `doctest` unit tests to assess whether the core features of the language work ok-ish enough.
+- Add custom exceptions (??) instead of using falling back on pattern match failure errors.
+- Move return parsing into `cmd` and change `prog` to check the result of cmd.
+- 💡 Spike: Research `do` notation and monads.
+- 💡 Spike: Hinley Milner type checking
 
 ## Done
 - Learn how to use Map
