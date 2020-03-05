@@ -24,12 +24,18 @@ Static type system : A user attempting to write and use code in the programming 
 3. Testing Good Input: `*Project> prog mainState`
 4. Testing Bad Input: `*Project> prog badState`
 
-
 ## Todo:
 - Develop Static Type system.
 - Simplify language core by using nested types for constructors that take same number of args.
 - Simplify language core by moving some features to synactic sugar.
 - Add lists.
+    - Add getting elements.
+    - Add assigning expressions to elements.
+    - Add (via syntactic sugar) a way to iterate for each element
+    - Add getting length (library level?)
+    - Add appending (library level?)
+    - Add removing (library level?)
+    - Add inserting (library level?)
 - Add simple `doctest` unit tests to assess whether the core features of the language work ok-ish enough.
 - 💡 Spike: Research `do` notation and monads.
 - 💡 Spike: Hinley Milner type checking

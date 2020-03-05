@@ -29,11 +29,13 @@ data Expr = ExprSum Expr Expr
           | ExprNE Expr Expr
           | ExprVar String
           | ExprVal VarVal
+          | ExprElement String Int  -- Fetch the value of a specific element in a list ex: `a = b + myList[3]`
           | ExprFunc String [Expr]
   deriving Show
 
 data Cmd = Def String FuncData
          | Set String Expr
+         | SetIndex String Int Expr -- Assign a value to a specific element in a list ex: `myList[3] = 4`
          | If Expr Prog
          | While Expr Prog
          | Return Expr
@@ -48,8 +50,9 @@ type Prog = [Cmd]
 data State = ProgState VarAssociation FuncAssociation Prog
   deriving Show
 
-mainProg :: Prog
-mainProg =
+-- An example of a valid program. Run using `run goodProg`
+goodProg :: Prog
+goodProg =
   [ Set "x" (ExprVal (Int 3))
   , Def
     "test"
@@ -66,9 +69,7 @@ mainProg =
   , Return (ExprVar "x")
   ]
 
-mainState :: State
-mainState = ProgState Map.empty Map.empty mainProg
-
+-- An example of an invalid program. Run using `run badProg`
 badProg :: Prog
 badProg =
   [ Set "x" (ExprVal (Int 3))
@@ -86,9 +87,6 @@ badProg =
        [Set "x" (ExprVal (Boolean True))]
   , Return (ExprVar "x")
   ]
-
-badState :: State
-badState = ProgState Map.empty Map.empty badProg
 
 -- Builds a new state object for use in a function call.  Takes arguments in this order: current program state, list of expr to fill args, list of arg names, empty var map (to be built), function definitions (to be passed), program block to execute
 buildFuncState
@@ -115,8 +113,7 @@ getFuncProg (FuncDataCon _ prog) = prog
 getFuncArgs :: FuncData -> [String]
 getFuncArgs (FuncDataCon args _) = args
 
--- Recursive function that takes any Expr and converts it to some value.  needs state to properly evaluate variables and functions.
-
+-- ??
 exprToBool
   :: MaybeError VarVal
   -> MaybeError VarVal
@@ -132,6 +129,7 @@ exprToBool (Error s) _         _ _ _ = Error s
 exprToBool _         (Error s) _ _ _ = Error s
 exprToBool _         _         _ _ _ = Error "Type error"
 
+-- ??
 exprBool
   :: MaybeError VarVal
   -> MaybeError VarVal
@@ -144,6 +142,7 @@ exprBool (Error  s      ) _                _ _ = Error s
 exprBool _                (Error s)        _ _ = Error s
 exprBool _                _                _ _ = Error "Type error"
 
+-- ??
 exprNum
   :: MaybeError VarVal
   -> MaybeError VarVal
@@ -156,6 +155,7 @@ exprNum (Error  s      ) _                _ _ = Error s
 exprNum _                (Error s)        _ _ = Error s
 exprNum _                _                _ _ = Error "Type error"
 
+-- ??
 exprEval :: State -> Expr -> MaybeError VarVal
 exprEval oldstate (ExprSum expr1 expr2) =
   exprNum (exprEval oldstate expr1) (exprEval oldstate expr2) (+) (+)
@@ -219,12 +219,17 @@ cmd (ProgState vars funcs p) (Return expr1) =
     Result x -> Result (ProgState vars funcs p, Just x)
     Error  e -> Error e
 
+-- Recursively process the commands in a program while carrying through the state.
 prog :: State -> MaybeError VarVal
 prog (ProgState _    _     []      ) = Result (Boolean False) --base case
 prog (ProgState vars funcs (x : xs)) = case cmd (ProgState vars funcs xs) x of
   Result (newstate, Nothing) -> prog newstate
   Result (_       , Just x ) -> Result x
   Error  s                   -> Error s
+
+-- Runs a program by initializing an empty state and processing the program
+run :: Prog -> MaybeError VarVal
+run p = prog (ProgState Map.empty Map.empty p)
 
 {-
 -- Compile the language to check for semantic errors that may occur such as datatype and syntax errors
