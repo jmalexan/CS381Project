@@ -1,4 +1,4 @@
-module Project where
+module Language where
 -- Description: Final Project for CS 381 Winter 2020
 -- Authors:
 --  > Faaiq Waqar (waqarf)
@@ -7,6 +7,9 @@ module Project where
 
 import qualified Data.Map.Strict               as Map
 import           Data.Maybe
+import           Prelude                 hiding ( EQ
+                                                , LT
+                                                )
 
 data VarVal = Int Integer | Flt Float | Boolean Bool | IntList [Integer] | FloatList [Float] | BoolList [Bool]
     deriving Show
@@ -19,14 +22,20 @@ data FuncData = FuncDataCon [String] Prog
   deriving Show
 type FuncAssociation = Map.Map String FuncData
 
-data Expr = ExprSum Expr Expr
-          | ExprSub Expr Expr
-          | ExprMul Expr Expr
-          | ExprDiv Expr Expr
-          | ExprLT Expr Expr
-          | ExprGT Expr Expr
-          | ExprEQ Expr Expr
-          | ExprNE Expr Expr
+-- Numeric (only works for Floats and Ints) operations
+data NumOp = Add | Sub | Mul | Div
+    deriving Show
+
+-- Operations on numeric values that produce a boolean value
+data CompNumOp = LT
+    deriving Show
+
+data CompOp = EQ
+    deriving Show
+
+data Expr = ExprNumOp NumOp Expr Expr
+          | ExprBinOp CompNumOp Expr Expr
+          | ExprCompOp CompOp Expr Expr
           | ExprVar String
           | ExprVal VarVal
           | ExprElement String Int  -- Fetch the value of a specific element in a list ex: `a = b + myList[3]`
@@ -50,43 +59,18 @@ type Prog = [Cmd]
 data State = ProgState VarAssociation FuncAssociation Prog
   deriving Show
 
--- An example of a valid program. Run using `run goodProg`
-goodProg :: Prog
-goodProg =
-  [ Set "x" (ExprVal (Int 3))
-  , Def
-    "test"
-    (FuncDataCon
-      ["asdf"]
-      [ Set "b" (ExprSum (ExprVal (Int 777)) (ExprVar "asdf"))
-      , Set "b" (ExprDiv (ExprVar "b") (ExprVal (Int 2)))
-      , Return (ExprVar "b")
-      ]
-    )
-  , Set "x" (ExprFunc "test" [ExprVar "x"])
-  , If (ExprEQ (ExprVar "x") (ExprVal (Int 381)))
-       [Set "x" (ExprVal (Boolean True))]
-  , Return (ExprVar "x")
-  ]
+-- *
+-- * Syntactic sugar
+-- *
 
--- An example of an invalid program. Run using `run badProg`
-badProg :: Prog
-badProg =
-  [ Set "x" (ExprVal (Int 3))
-  , Def
-    "test"
-    (FuncDataCon
-      ["asdf"]
-      [ Set "b" (ExprSum (ExprVal (Int 777)) (ExprVar "asdf"))
-      , Set "b" (ExprDiv (ExprVar "b") (ExprVal (Flt 2)))
-      , Return (ExprVar "b")
-      ]
-    )
-  , Set "x" (ExprFunc "test" [ExprVar "x"])
-  , If (ExprEQ (ExprVar "x") (ExprVal (Int 381)))
-       [Set "x" (ExprVal (Boolean True))]
-  , Return (ExprVar "x")
-  ]
+exprSum :: Expr -> Expr -> Expr
+exprSum = ExprNumOp Add
+
+exprDiv :: Expr -> Expr -> Expr
+exprDiv = ExprNumOp Div
+
+exprEQ :: Expr -> Expr -> Expr
+exprEQ = ExprCompOp EQ
 
 -- Builds a new state object for use in a function call.  Takes arguments in this order: current program state, list of expr to fill args, list of arg names, empty var map (to be built), function definitions (to be passed), program block to execute
 buildFuncState
@@ -112,67 +96,61 @@ getFuncProg (FuncDataCon _ prog) = prog
 -- Utility function to get an arg name list out of the function map data
 getFuncArgs :: FuncData -> [String]
 getFuncArgs (FuncDataCon args _) = args
+-- Applies a numeric operataion to a pair of Floats
+floatOpEval :: NumOp -> Float -> Float -> VarVal
+floatOpEval Add x y = Flt (x + y)
+floatOpEval Sub x y = Flt (x - y)
+floatOpEval Mul x y = Flt (x * y)
+floatOpEval Div x y = Flt (x / y)
 
--- ??
-exprToBool
-  :: MaybeError VarVal
-  -> MaybeError VarVal
-  -> (Integer -> Integer -> Bool)
-  -> (Float -> Float -> Bool)
-  -> (Bool -> Bool -> Bool)
-  -> MaybeError VarVal
-exprToBool (Result (Int x)) (Result (Int y)) f _ _ = Result (Boolean (f x y))
-exprToBool (Result (Flt x)) (Result (Flt y)) _ g _ = Result (Boolean (g x y))
-exprToBool (Result (Boolean x)) (Result (Boolean y)) _ _ h =
-  Result (Boolean (h x y))
-exprToBool (Error s) _         _ _ _ = Error s
-exprToBool _         (Error s) _ _ _ = Error s
-exprToBool _         _         _ _ _ = Error "Type error"
+-- Applies a numeric operataion to a pair of Ints
+intOpEval :: NumOp -> Integer -> Integer -> VarVal
+intOpEval Add x y = Int (x + y)
+intOpEval Sub x y = Int (x - y)
+intOpEval Mul x y = Int (x * y)
+intOpEval Div x y = Int (div x y) -- Force integer division
 
--- ??
-exprBool
-  :: MaybeError VarVal
-  -> MaybeError VarVal
-  -> (Integer -> Integer -> Bool)
-  -> (Float -> Float -> Bool)
-  -> MaybeError VarVal
-exprBool (Result (Int x)) (Result (Int y)) f _ = Result (Boolean (f x y))
-exprBool (Result (Flt x)) (Result (Flt y)) _ g = Result (Boolean (g x y))
-exprBool (Error  s      ) _                _ _ = Error s
-exprBool _                (Error s)        _ _ = Error s
-exprBool _                _                _ _ = Error "Type error"
+-- Applies a comparison operataion to a pair of Floats
+floatBinOpEval :: CompNumOp -> Float -> Float -> VarVal
+floatBinOpEval LT x y = Boolean (x < y)
 
--- ??
-exprNum
-  :: MaybeError VarVal
-  -> MaybeError VarVal
-  -> (Integer -> Integer -> Integer)
-  -> (Float -> Float -> Float)
-  -> MaybeError VarVal
-exprNum (Result (Int x)) (Result (Int y)) f _ = Result (Int (f x y))
-exprNum (Result (Flt x)) (Result (Flt y)) _ g = Result (Flt (g x y))
-exprNum (Error  s      ) _                _ _ = Error s
-exprNum _                (Error s)        _ _ = Error s
-exprNum _                _                _ _ = Error "Type error"
+-- Applies a comparison operataion to a pair of Ints
+intBinOpEval :: CompNumOp -> Integer -> Integer -> VarVal
+intBinOpEval LT x y = Boolean (x < y)
+
+boolCompOpEval :: CompOp -> Bool -> Bool -> VarVal
+boolCompOpEval EQ x y = Boolean (x == y)
+
+floatCompOpEval :: CompOp -> Float -> Float -> VarVal
+floatCompOpEval EQ x y = Boolean (x == y)
+
+intCompOpEval :: CompOp -> Integer -> Integer -> VarVal
+intCompOpEval EQ x y = Boolean (x == y)
 
 -- ??
 exprEval :: State -> Expr -> MaybeError VarVal
-exprEval oldstate (ExprSum expr1 expr2) =
-  exprNum (exprEval oldstate expr1) (exprEval oldstate expr2) (+) (+)
-exprEval oldstate (ExprSub expr1 expr2) =
-  exprNum (exprEval oldstate expr1) (exprEval oldstate expr2) (-) (-)
-exprEval oldstate (ExprMul expr1 expr2) =
-  exprNum (exprEval oldstate expr1) (exprEval oldstate expr2) (*) (*)
-exprEval oldstate (ExprDiv expr1 expr2) =
-  exprNum (exprEval oldstate expr1) (exprEval oldstate expr2) div (/)
-exprEval oldstate (ExprLT expr1 expr2) =
-  exprBool (exprEval oldstate expr1) (exprEval oldstate expr2) (<) (<)
-exprEval oldstate (ExprGT expr1 expr2) =
-  exprBool (exprEval oldstate expr1) (exprEval oldstate expr2) (>) (>)
-exprEval oldstate (ExprEQ expr1 expr2) =
-  exprToBool (exprEval oldstate expr1) (exprEval oldstate expr2) (==) (==) (==)
-exprEval oldstate (ExprNE expr1 expr2) =
-  exprToBool (exprEval oldstate expr1) (exprEval oldstate expr2) (/=) (/=) (/=)
+exprEval oldstate (ExprNumOp oper expr1 expr2) =
+  case (exprEval oldstate expr1, exprEval oldstate expr2) of
+    (Result (Int x), Result (Int y)) -> Result (intOpEval oper x y)
+    (Result (Flt x), Result (Flt y)) -> Result (floatOpEval oper x y)
+    (Error s       , _)              -> Error s
+    (_             , Error s)        -> Error s
+    _                                -> Error "Type Error"
+exprEval oldstate (ExprBinOp oper expr1 expr2) =
+  case (exprEval oldstate expr1, exprEval oldstate expr2) of
+    (Result (Int x), Result (Int y)) -> Result (intBinOpEval oper x y)
+    (Result (Flt x), Result (Flt y)) -> Result (floatBinOpEval oper x y)
+    (Error s       , _)              -> Error s
+    (_             , Error s)        -> Error s
+    _                                -> Error "Type Error"
+exprEval oldstate (ExprCompOp oper expr1 expr2) =
+  case (exprEval oldstate expr1, exprEval oldstate expr2) of
+    (Result (Int x), Result (Int y))         -> Result (intCompOpEval oper x y)
+    (Result (Flt x), Result (Flt y))         -> Result (floatCompOpEval oper x y)
+    (Result (Boolean x), Result (Boolean y)) -> Result (boolCompOpEval oper x y)
+    (Error s       , _)                      -> Error s
+    (_             , Error s)                -> Error s
+    _                                        -> Error "Type Error"
 exprEval (ProgState vars _ _) (ExprVar name) = case Map.lookup name vars of
   Just val -> Result val
   _        -> Error "Variable not found"
