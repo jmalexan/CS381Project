@@ -1,4 +1,4 @@
-module Project where
+module Language where
 -- Description: Final Project for CS 381 Winter 2020
 -- Authors:
 --  > Faaiq Waqar (waqarf)
@@ -11,7 +11,7 @@ import           Prelude                 hiding ( EQ
                                                 , LT
                                                 )
 
-data VarVal = Int Integer | Flt Float | Boolean Bool
+data VarVal = Int Int | Flt Float | Boolean Bool
     deriving Show
 
 data CompVal = Loaded | Syntaxerror | Datatypeerror
@@ -19,29 +19,35 @@ data CompVal = Loaded | Syntaxerror | Datatypeerror
 
 type VarAssociation = Map.Map String VarVal
 data FuncData = FuncDataCon [String] Prog
+    deriving Show
 type FuncAssociation = Map.Map String FuncData
 
 -- Numeric (only works for Floats and Ints) operations
 data NumOp = Add | Sub | Mul | Div
+    deriving Show
 
 -- Operations on numeric values that produce a boolean value
-data BinOp = LT | EQ
+data CompOp = LT | EQ
+    deriving Show
 
 data Expr = ExprNumOp NumOp Expr Expr
-          | ExprBinOp BinOp Expr Expr
+          | ExprBinOp CompOp Expr Expr
           | ExprVar String
           | ExprVal VarVal
           | ExprFunc String [Expr]
+    deriving Show
 
 data Cmd = Def String FuncData
          | Set String Expr
          | If Expr Prog
          | While Expr Prog
          | Return Expr
+    deriving Show
 
 type Prog = [Cmd]
 
 data State = ProgState VarAssociation FuncAssociation Prog
+    deriving Show
 
 -- *
 -- * Syntactic sugar
@@ -55,48 +61,6 @@ exprDiv = ExprNumOp Div
 
 exprEQ :: Expr -> Expr -> Expr
 exprEQ = ExprBinOp EQ
-
-mainProg :: Prog
-mainProg =
-  [ Set "x" (ExprVal (Int 3))
-  , Def
-    "test"
-    (FuncDataCon
-      ["asdf"]
-      [ Set "b" (exprSum (ExprVal (Int 777)) (ExprVar "asdf"))
-      , Set "b" (exprDiv (ExprVar "b") (ExprVal (Int 2)))
-      , Return (ExprVar "b")
-      ]
-    )
-  , Set "x" (ExprFunc "test" [ExprVar "x"])
-  , If (exprDiv (ExprVar "x") (ExprVal (Int 381)))
-       [Set "x" (ExprVal (Boolean True))]
-  , Return (ExprVar "x")
-  ]
-
-mainState :: State
-mainState = ProgState Map.empty Map.empty mainProg
-
-badProg :: Prog
-badProg =
-  [ Set "x" (ExprVal (Int 3))
-  , Def
-    "test"
-    (FuncDataCon
-      ["asdf"]
-      [ Set "b" (exprSum (ExprVal (Int 777)) (ExprVar "asdf"))
-      , Set "b" (exprDiv (ExprVar "b") (ExprVal (Flt 2)))
-      , Return (ExprVar "b")
-      ]
-    )
-  , Set "x" (ExprFunc "test" [ExprVar "x"])
-  , If (exprEQ (ExprVar "x") (ExprVal (Int 381)))
-       [Set "x" (ExprVal (Boolean True))]
-  , Return (ExprVar "x")
-  ]
-
-badState :: State
-badState = ProgState Map.empty Map.empty badProg
 
 -- Builds a new state object for use in a function call.  Takes arguments in this order: current program state, list of expr to fill args, list of arg names, empty var map (to be built), function definitions (to be passed), program block to execute
 buildFuncState
@@ -132,17 +96,19 @@ floatOpEval Mul x y = Flt (x * y)
 floatOpEval Div x y = Flt (x / y)
 
 -- Applies a numeric operataion to a pair of Ints
-intOpEval :: NumOp -> Integer -> Integer -> VarVal
+intOpEval :: NumOp -> Int -> Int -> VarVal
 intOpEval Add x y = Int (x + y)
 intOpEval Sub x y = Int (x - y)
 intOpEval Mul x y = Int (x * y)
 intOpEval Div x y = Int (div x y) -- Force integer division
 
-floatBinOpEval :: BinOp -> Float -> Float -> VarVal
+-- Applies a comparison operataion to a pair of Floats
+floatBinOpEval :: CompOp -> Float -> Float -> VarVal
 floatBinOpEval LT x y = Boolean (x < y)
 floatBinOpEval EQ x y = Boolean (x == y)
 
-intBinOpEval :: BinOp -> Integer -> Integer -> VarVal
+-- Applies a comparison operataion to a pair of Ints
+intBinOpEval :: CompOp -> Int -> Int -> VarVal
 intBinOpEval LT x y = Boolean (x < y)
 intBinOpEval EQ x y = Boolean (x == y)
 

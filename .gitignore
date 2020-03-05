@@ -1,3 +1,4 @@
 Icon
-Project.hi
-Project.o
+*.hi
+*.o
+.vscode/
