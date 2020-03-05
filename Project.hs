@@ -16,6 +16,7 @@ data CompVal = Loaded | Syntaxerror | Datatypeerror
 
 type VarAssociation = Map.Map String VarVal
 data FuncData = FuncDataCon [String] Prog
+  deriving Show
 type FuncAssociation = Map.Map String FuncData
 
 data Expr = ExprSum Expr Expr
@@ -29,12 +30,14 @@ data Expr = ExprSum Expr Expr
           | ExprVar String
           | ExprVal VarVal
           | ExprFunc String [Expr]
+  deriving Show
 
 data Cmd = Def String FuncData
          | Set String Expr
          | If Expr Prog
          | While Expr Prog
          | Return Expr
+  deriving Show
 
 data MaybeError x = Result x
                   | Error String
@@ -43,6 +46,7 @@ data MaybeError x = Result x
 type Prog = [Cmd]
 
 data State = ProgState VarAssociation FuncAssociation Prog
+  deriving Show
 
 mainProg :: Prog
 mainProg =
@@ -153,40 +157,22 @@ exprNum _                (Error s)        _ _ = Error s
 exprNum _                _                _ _ = Error "Type error"
 
 exprEval :: State -> Expr -> MaybeError VarVal
-exprEval oldstate (ExprSum expr1 expr2) = exprNum (exprEval oldstate expr1)
-                                                  (exprEval oldstate expr2)
-                                                  (\x y -> x + y)
-                                                  (\x y -> x + y)
-exprEval oldstate (ExprSub expr1 expr2) = exprNum (exprEval oldstate expr1)
-                                                  (exprEval oldstate expr2)
-                                                  (\x y -> x - y)
-                                                  (\x y -> x - y)
-exprEval oldstate (ExprMul expr1 expr2) = exprNum (exprEval oldstate expr1)
-                                                  (exprEval oldstate expr2)
-                                                  (\x y -> x * y)
-                                                  (\x y -> x * y)
-exprEval oldstate (ExprDiv expr1 expr2) = exprNum (exprEval oldstate expr1)
-                                                  (exprEval oldstate expr2)
-                                                  (\x y -> div x y)
-                                                  (\x y -> x / y)
-exprEval oldstate (ExprLT expr1 expr2) = exprBool (exprEval oldstate expr1)
-                                                  (exprEval oldstate expr2)
-                                                  (\x y -> x < y)
-                                                  (\x y -> x < y)
-exprEval oldstate (ExprGT expr1 expr2) = exprBool (exprEval oldstate expr1)
-                                                  (exprEval oldstate expr2)
-                                                  (\x y -> x > y)
-                                                  (\x y -> x > y)
-exprEval oldstate (ExprEQ expr1 expr2) = exprToBool (exprEval oldstate expr1)
-                                                    (exprEval oldstate expr2)
-                                                    (\x y -> x == y)
-                                                    (\x y -> x == y)
-                                                    (\x y -> x == y)
-exprEval oldstate (ExprNE expr1 expr2) = exprToBool (exprEval oldstate expr1)
-                                                    (exprEval oldstate expr2)
-                                                    (\x y -> x /= y)
-                                                    (\x y -> x /= y)
-                                                    (\x y -> x /= y)
+exprEval oldstate (ExprSum expr1 expr2) =
+  exprNum (exprEval oldstate expr1) (exprEval oldstate expr2) (+) (+)
+exprEval oldstate (ExprSub expr1 expr2) =
+  exprNum (exprEval oldstate expr1) (exprEval oldstate expr2) (-) (-)
+exprEval oldstate (ExprMul expr1 expr2) =
+  exprNum (exprEval oldstate expr1) (exprEval oldstate expr2) (*) (*)
+exprEval oldstate (ExprDiv expr1 expr2) =
+  exprNum (exprEval oldstate expr1) (exprEval oldstate expr2) div (/)
+exprEval oldstate (ExprLT expr1 expr2) =
+  exprBool (exprEval oldstate expr1) (exprEval oldstate expr2) (<) (<)
+exprEval oldstate (ExprGT expr1 expr2) =
+  exprBool (exprEval oldstate expr1) (exprEval oldstate expr2) (>) (>)
+exprEval oldstate (ExprEQ expr1 expr2) =
+  exprToBool (exprEval oldstate expr1) (exprEval oldstate expr2) (==) (==) (==)
+exprEval oldstate (ExprNE expr1 expr2) =
+  exprToBool (exprEval oldstate expr1) (exprEval oldstate expr2) (/=) (/=) (/=)
 exprEval (ProgState vars _ _) (ExprVar name) = case Map.lookup name vars of
   Just val -> Result val
   _        -> Error "Variable not found"
@@ -234,7 +220,7 @@ cmd (ProgState vars funcs p) (Return expr1) =
     Error  e -> Error e
 
 prog :: State -> MaybeError VarVal
-prog (ProgState _ _ []) = Result (Boolean False) --base case
+prog (ProgState _    _     []      ) = Result (Boolean False) --base case
 prog (ProgState vars funcs (x : xs)) = case cmd (ProgState vars funcs xs) x of
   Result (newstate, Nothing) -> prog newstate
   Result (_       , Just x ) -> Result x
