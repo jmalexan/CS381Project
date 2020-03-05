@@ -8,7 +8,7 @@ module Project where
 import qualified Data.Map.Strict               as Map
 import           Data.Maybe
 
-data VarVal = Int Integer | Flt Float | Boolean Bool
+data VarVal = Int Integer | Flt Float | Boolean Bool | IntList [Integer] | FloatList [Float] | BoolList [Bool]
     deriving Show
 
 data CompVal = Loaded | Syntaxerror | Datatypeerror
