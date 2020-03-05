@@ -1,1 +1,7 @@
+# VSCode nonsense
 Icon
+.vscode/
+
+# Haskell support files
+*.hi
+*.o
