@@ -36,6 +36,10 @@ data Cmd = Def String FuncData
          | While Expr Prog
          | Return Expr
 
+data MaybeError x = Result x
+                  | Error String
+  deriving Show
+
 type Prog = [Cmd]
 
 data State = ProgState VarAssociation FuncAssociation Prog
@@ -90,15 +94,14 @@ buildFuncState
   -> VarAssociation
   -> FuncAssociation
   -> Prog
-  -> State
-buildFuncState _        []       []       vars funcs p = ProgState vars funcs p
-buildFuncState oldstate (x : xs) (s : ss) vars funcs p = buildFuncState
-  oldstate
-  xs
-  ss
-  (Map.insert s (exprEval oldstate x) vars)
-  funcs
-  p
+  -> MaybeError State
+buildFuncState _ [] [] vars funcs p = Result (ProgState vars funcs p)
+buildFuncState _ [] _  vars funcs p = Error "Not enough arguments"
+buildFuncState _ _  [] vars funcs p = Error "Too many arguments"
+buildFuncState oldstate (x : xs) (s : ss) vars funcs p =
+  case exprEval oldstate x of
+    Result v -> buildFuncState oldstate xs ss (Map.insert s v vars) funcs p
+    Error  s -> Error s
 
 -- Utility function to get a prog block out of the function map data
 getFuncProg :: FuncData -> Prog
@@ -109,88 +112,133 @@ getFuncArgs :: FuncData -> [String]
 getFuncArgs (FuncDataCon args _) = args
 
 -- Recursive function that takes any Expr and converts it to some value.  needs state to properly evaluate variables and functions.
-exprEval :: State -> Expr -> VarVal
-exprEval oldstate (ExprSum expr1 expr2) = case exprEval oldstate expr1 of
-  Int x -> case exprEval oldstate expr2 of
-    Int y -> Int (x + y)
-  Flt x -> case exprEval oldstate expr2 of
-    Flt y -> Flt (x + y)
-exprEval oldstate (ExprSub expr1 expr2) = case exprEval oldstate expr1 of
-  Int x -> case exprEval oldstate expr2 of
-    Int y -> Int (x - y)
-  Flt x -> case exprEval oldstate expr2 of
-    Flt y -> Flt (x - y)
-exprEval oldstate (ExprMul expr1 expr2) = case exprEval oldstate expr1 of
-  Int x -> case exprEval oldstate expr2 of
-    Int y -> Int (x * y)
-  Flt x -> case exprEval oldstate expr2 of
-    Flt y -> Flt (x * y)
-exprEval oldstate (ExprDiv expr1 expr2) = case exprEval oldstate expr1 of
-  Int x -> case exprEval oldstate expr2 of
-    Int y -> Int (div x y)
-  Flt x -> case exprEval oldstate expr2 of
-    Flt y -> Flt (x / y)
-exprEval oldstate (ExprLT expr1 expr2) = case exprEval oldstate expr1 of
-  Int x -> case exprEval oldstate expr2 of
-    Int y -> Boolean (x < y)
-  Flt x -> case exprEval oldstate expr2 of
-    Flt y -> Boolean (x < y)
-exprEval oldstate (ExprGT expr1 expr2) = case exprEval oldstate expr1 of
-  Int x -> case exprEval oldstate expr2 of
-    Int y -> Boolean (x > y)
-  Flt x -> case exprEval oldstate expr2 of
-    Flt y -> Boolean (x > y)
-exprEval oldstate (ExprEQ expr1 expr2) = case exprEval oldstate expr1 of
-  Int x -> case exprEval oldstate expr2 of
-    Int y -> Boolean (x == y)
-  Flt x -> case exprEval oldstate expr2 of
-    Flt y -> Boolean (x == y)
-  Boolean x -> case exprEval oldstate expr2 of
-    Boolean y -> Boolean (x == y)
-exprEval oldstate (ExprNE expr1 expr2) = case exprEval oldstate expr1 of
-  Int x -> case exprEval oldstate expr2 of
-    Int y -> Boolean (x /= y)
-  Flt x -> case exprEval oldstate expr2 of
-    Flt y -> Boolean (x /= y)
-  Boolean x -> case exprEval oldstate expr2 of
-    Boolean y -> Boolean (x /= y)
+
+exprToBool
+  :: MaybeError VarVal
+  -> MaybeError VarVal
+  -> (Integer -> Integer -> Bool)
+  -> (Float -> Float -> Bool)
+  -> (Bool -> Bool -> Bool)
+  -> MaybeError VarVal
+exprToBool (Result (Int x)) (Result (Int y)) f _ _ = Result (Boolean (f x y))
+exprToBool (Result (Flt x)) (Result (Flt y)) _ g _ = Result (Boolean (g x y))
+exprToBool (Result (Boolean x)) (Result (Boolean y)) _ _ h =
+  Result (Boolean (h x y))
+exprToBool (Error s) _         _ _ _ = Error s
+exprToBool _         (Error s) _ _ _ = Error s
+exprToBool _         _         _ _ _ = Error "Type error"
+
+exprBool
+  :: MaybeError VarVal
+  -> MaybeError VarVal
+  -> (Integer -> Integer -> Bool)
+  -> (Float -> Float -> Bool)
+  -> MaybeError VarVal
+exprBool (Result (Int x)) (Result (Int y)) f _ = Result (Boolean (f x y))
+exprBool (Result (Flt x)) (Result (Flt y)) _ g = Result (Boolean (g x y))
+exprBool (Error  s      ) _                _ _ = Error s
+exprBool _                (Error s)        _ _ = Error s
+exprBool _                _                _ _ = Error "Type error"
+
+exprNum
+  :: MaybeError VarVal
+  -> MaybeError VarVal
+  -> (Integer -> Integer -> Integer)
+  -> (Float -> Float -> Float)
+  -> MaybeError VarVal
+exprNum (Result (Int x)) (Result (Int y)) f _ = Result (Int (f x y))
+exprNum (Result (Flt x)) (Result (Flt y)) _ g = Result (Flt (g x y))
+exprNum (Error  s      ) _                _ _ = Error s
+exprNum _                (Error s)        _ _ = Error s
+exprNum _                _                _ _ = Error "Type error"
+
+exprEval :: State -> Expr -> MaybeError VarVal
+exprEval oldstate (ExprSum expr1 expr2) = exprNum (exprEval oldstate expr1)
+                                                  (exprEval oldstate expr2)
+                                                  (\x y -> x + y)
+                                                  (\x y -> x + y)
+exprEval oldstate (ExprSub expr1 expr2) = exprNum (exprEval oldstate expr1)
+                                                  (exprEval oldstate expr2)
+                                                  (\x y -> x - y)
+                                                  (\x y -> x - y)
+exprEval oldstate (ExprMul expr1 expr2) = exprNum (exprEval oldstate expr1)
+                                                  (exprEval oldstate expr2)
+                                                  (\x y -> x * y)
+                                                  (\x y -> x * y)
+exprEval oldstate (ExprDiv expr1 expr2) = exprNum (exprEval oldstate expr1)
+                                                  (exprEval oldstate expr2)
+                                                  (\x y -> div x y)
+                                                  (\x y -> x / y)
+exprEval oldstate (ExprLT expr1 expr2) = exprBool (exprEval oldstate expr1)
+                                                  (exprEval oldstate expr2)
+                                                  (\x y -> x < y)
+                                                  (\x y -> x < y)
+exprEval oldstate (ExprGT expr1 expr2) = exprBool (exprEval oldstate expr1)
+                                                  (exprEval oldstate expr2)
+                                                  (\x y -> x > y)
+                                                  (\x y -> x > y)
+exprEval oldstate (ExprEQ expr1 expr2) = exprToBool (exprEval oldstate expr1)
+                                                    (exprEval oldstate expr2)
+                                                    (\x y -> x == y)
+                                                    (\x y -> x == y)
+                                                    (\x y -> x == y)
+exprEval oldstate (ExprNE expr1 expr2) = exprToBool (exprEval oldstate expr1)
+                                                    (exprEval oldstate expr2)
+                                                    (\x y -> x /= y)
+                                                    (\x y -> x /= y)
+                                                    (\x y -> x /= y)
 exprEval (ProgState vars _ _) (ExprVar name) = case Map.lookup name vars of
-  Just val -> val
-exprEval _ (ExprVal val) = val
+  Just val -> Result val
+  _        -> Error "Variable not found"
+exprEval _ (ExprVal val) = Result val
 exprEval (ProgState vars funcs p) (ExprFunc name args) =
   case Map.lookup name funcs of
-    Just func -> prog
-      (buildFuncState (ProgState vars funcs p)
-                      args
-                      (getFuncArgs func)
-                      Map.empty
-                      funcs
-                      (getFuncProg func)
-      )
+    Just func ->
+      case
+          buildFuncState (ProgState vars funcs p)
+                         args
+                         (getFuncArgs func)
+                         Map.empty
+                         funcs
+                         (getFuncProg func)
+        of
+          Result newstate -> prog newstate
+          Error  s        -> Error s
+    _ -> Error "Function not found"
 
 -- Evaluate currently executing command.  Loops and Conditionals are handled by injecting commands onto the current state's program.
-cmd :: State -> Cmd -> State
+cmd :: State -> Cmd -> MaybeError (State, Maybe VarVal)
 cmd (ProgState vars funcs p) (Def name funcdata) =
-  ProgState vars (Map.insert name funcdata funcs) p
-cmd (ProgState vars funcs p) (Set name val) = ProgState
-  (Map.insert name (exprEval (ProgState vars funcs p) val) vars)
-  funcs
-  p
+  Result (ProgState vars (Map.insert name funcdata funcs) p, Nothing)
+cmd (ProgState vars funcs p) (Set name val) =
+  case exprEval (ProgState vars funcs p) val of
+    Result v -> Result (ProgState (Map.insert name v vars) funcs p, Nothing)
+    Error  s -> Error s
 cmd (ProgState vars funcs p) (If condition block) =
   case exprEval (ProgState vars funcs p) condition of
-    Boolean True  -> ProgState vars funcs (block ++ p)
-    Boolean False -> ProgState vars funcs p
+    Result (Boolean True) ->
+      Result (ProgState vars funcs (block ++ p), Nothing)
+    Result (Boolean False) -> Result (ProgState vars funcs p, Nothing)
+    Error  s               -> Error s
+    _                      -> Error "Non boolean in if condition"
 cmd (ProgState vars funcs p) (While condition block) =
   case exprEval (ProgState vars funcs p) condition of
-    Boolean True ->
-      ProgState vars funcs (block ++ [While condition block] ++ p)
-    Boolean False -> ProgState vars funcs p
+    Result (Boolean True) -> Result
+      (ProgState vars funcs (block ++ [While condition block] ++ p), Nothing)
+    Result (Boolean False) -> Result (ProgState vars funcs p, Nothing)
+    Error  s               -> Error s
+    _                      -> Error "Non boolean in while loop condition"
+cmd (ProgState vars funcs p) (Return expr1) =
+  case exprEval (ProgState vars funcs p) expr1 of
+    Result x -> Result (ProgState vars funcs p, Just x)
+    Error  e -> Error e
 
-prog :: State -> VarVal
-prog (ProgState _ _ []) = Boolean False --base case
-prog (ProgState vars funcs ((Return expr1) : xs)) =
-  exprEval (ProgState vars funcs xs) expr1
-prog (ProgState vars funcs (x : xs)) = prog (cmd (ProgState vars funcs xs) x)
+prog :: State -> MaybeError VarVal
+prog (ProgState _ _ []) = Result (Boolean False) --base case
+prog (ProgState vars funcs (x : xs)) = case cmd (ProgState vars funcs xs) x of
+  Result (newstate, Nothing) -> prog newstate
+  Result (_       , Just x ) -> Result x
+  Error  s                   -> Error s
 
 {-
 -- Compile the language to check for semantic errors that may occur such as datatype and syntax errors
