@@ -29,9 +29,10 @@ Static type system : A user attempting to write and use code in the programming 
 - Lists:
     - Getting length (core).
     - Iterate for each element (syntactic sugar).
-    - Deleting elements (syntactic sugar using for each).
-    - Assigning expressions at index (syntactic sugar using for each).
-    - Appending (syntactic sugar).
+    - Deleting elements (syntactic sugar using for each to make a copy).
+    - Assigning expressions at index (syntactic sugar using delete and insert).
+    - Appending (syntactic sugar/library level).
+    - Range(start, end) function (library level).
 - Add context to errors using the fact we capture the Error text everywhere.
 - Expand unit tests to cover more of the language.
 - 💡 Spike: Research `do` notation and monads.

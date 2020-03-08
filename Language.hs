@@ -49,6 +49,7 @@ data Cmd = Def String FuncData -- Define a function with a name specified by Str
          | Index String Expr Expr -- Assign a value to a specific element in a list ex: `myList[3] = 4`.
          | If Expr Prog
          | While Expr Prog
+         | Macro [Cmd] -- [Julian's proposal; feel free to discuss] Not accessible via the language syntax, but necessary for advanced syntactic sugar.
          | Return Expr
   deriving Show
 
