@@ -21,13 +21,20 @@ import           Prelude                 hiding ( EQ
 data VarVal = Int Integer | Flt Float | Boolean Bool | IntList [Integer] | FloatList [Float] | BoolList [Bool]
     deriving Show
 
+data Type = TInt | TFlt | TBool | TIntList | TFltList | TBoolList
+    deriving Show
+
 data CompVal = Loaded | Syntaxerror | Datatypeerror
     deriving Show
 
 type VarAssociation = Map.Map String VarVal
 data FuncData = FuncDataCon [String] Prog
   deriving Show
+data FuncTypeData = FuncTypeDataCon [Type] Type
 type FuncAssociation = Map.Map String FuncData
+type FuncTypeAssociation = Map.Map String FuncData
+
+type VarTypeAssociation = Map.Map String Type
 
 -- Numeric (only works for Floats and Ints) operations
 data Operation = Add | Sub | Mul | Div | Equal | Less | And
@@ -62,6 +69,9 @@ type Prog = [Cmd]
 data State = ProgState VarAssociation FuncAssociation Prog
   deriving Show
 
+data TypeState = ProgTypeState VarTypeAssociation FuncAssociation Prog
+  deriving Show
+
 --------------------------------------------------------------
 -- Syntactic sugar
 --------------------------------------------------------------
@@ -78,7 +88,7 @@ buildFuncState
   :: State
   -> [Expr]
   -> [String]
-  -> VarAssociation
+  -> VarAssociation 
   -> FuncAssociation
   -> Prog
   -> MaybeError State
@@ -145,7 +155,7 @@ and :: VarVal -> VarVal -> MaybeError VarVal
 and (Boolean x) (Boolean y) = Result (Boolean (x && y))
 and _ _ = Error "Type Error: `and` is only defined for boolean types."
 
--- Applies a numeric operataion to a pair of Floats
+-- Applies an operataion to a pair of values
 operationEval :: Operation -> VarVal -> VarVal -> MaybeError VarVal
 operationEval Add   x y = add x y
 operationEval Sub   x y = subtract x y
@@ -223,6 +233,143 @@ prog (ProgState vars funcs (x : xs)) = case cmd (ProgState vars funcs xs) x of
 -- Runs a program by initializing an empty state and processing the program
 run :: Prog -> MaybeError VarVal
 run p = prog (ProgState Map.empty Map.empty p)
+
+
+
+-- -- Builds a new state object for use in a function call.  Takes arguments in this order: current program state, list of expr to fill args, list of arg names, empty var map (to be built), function definitions (to be passed), program block to execute
+-- buildFuncTypeState
+--   :: TypeState
+--   -> [Expr]
+--   -> [String]
+--   -> VarTypeAssociation 
+--   -> FuncTypeAssociation
+--   -> Prog
+--   -> Maybe TypeState
+-- buildFuncTypeState _ [] [] vars funcs p = Just (ProgTypeState vars funcs p)
+-- buildFuncTypeState _ [] _  vars funcs p = Nothing
+-- buildFuncTypeState _ _  [] vars funcs p = Nothing
+-- buildFuncTypeState oldstate (x : xs) (s : ss) vars funcs p =
+--   case exprType oldstate x of
+--     Result v -> buildFuncTypeState oldstate xs ss (Map.insert s v vars) funcs p
+--     Error  s -> Error s
+
+-- -- Check the add operation types.
+-- addType :: Type -> Type -> Maybe Type
+-- addType TBool TBool = Nothing
+-- addType x x = Just x
+-- addType _ _ = Nothing
+
+-- -- Check the sub operation types.
+-- subtractType :: Type -> Type -> Maybe Type
+-- subtractType TBool TBool = Nothing
+-- subtractType x x = Just x
+-- subtractType _ _ = Nothing
+
+-- -- Check the mul operation types.
+-- multiplyType :: Type -> Type -> Maybe Type
+-- multiplyType TBool TBool = Nothing
+-- multiplyType x x = Just x
+-- multiplyType _ _ = Nothing
+
+-- -- Check the div operation types.
+-- divideType :: Type -> Type -> Maybe Type
+-- divideType TBool TBool = Nothing
+-- divideType x x = Just x
+-- divideType _ _ = Nothing
+
+-- -- Check the equal operation types.
+-- equalType :: Type -> Type -> Maybe Type
+-- equalType x x = Just TBool
+-- equalType _ _ = Nothing
+
+-- -- Check the less than operation types.
+-- lessType :: Type -> Type -> Maybe Type
+-- lessType TBool TBool = Nothing
+-- lessType x x = Just x
+-- lessType _ _ = Nothing
+
+-- -- Check the and operation types.
+-- andType :: VarVal -> VarVal -> MaybeError VarVal
+-- andType TBool TBool = Just TBool
+-- andType _ _ = Nothing
+
+-- -- Checks the types of an operation on two values.
+-- operationType :: Operation -> Type -> Type -> Maybe Type
+-- operationType Add   x y = add x y
+-- operationType Sub   x y = subtract x y
+-- operationType Mul   x y = multiply x y
+-- operationType Div   x y = divide x y
+-- operationType Equal x y = equal x y
+-- operationType Less  x y = less x y
+-- operationType And   x y = and x y
+
+
+-- checkFuncArgsType :: TypeState -> [Expr] -> [Type] -> Boolean
+-- checkFuncArgsType _ [] [] = True
+-- checkFuncArgsType _ [] _ = False
+-- checkFuncArgsType _ _ [] = False
+-- checkFuncArgsType s (x:xs) (y:ys) = case exprType s x of
+--   Just z -> case z == y of
+--     True  -> checkFuncArgsType s xs ys
+--     False -> False
+--   _      -> Nothing
+
+-- exprType :: TypeState -> Expr -> Maybe Type
+-- exprType oldstate (Operation oper expr1 expr2) = case (exprType oldstate expr1, exprType oldstate expr2) of
+--   (Just x, Just y) -> operationType x y
+--   _                -> Nothing
+-- exprType oldstate (Not expr) = case exprType oldstate expr of
+--   Just TBool -> TBool
+--   _          -> Nothing
+-- exprType (ProgState vars _ _) (Variable name) = Map.lookup name vars
+-- exprType _ (Literal (Int _)) = Just TInt
+-- exprType _ (Literal (Flt _)) = Just TFlt
+-- exprType _ (Literal (Boolean _)) = Just TBool
+-- exprType (ProgTypeState vars funcs p) (Function name args) =
+--   case Map.lookup name funcs of
+--     Just (FuncTypeData argtypes returntype) -> case checkFuncArgsType (ProgTypeState vars funcs p) args argtypes of
+--       True -> Just returntype
+--       False -> Nothing
+--     _ -> Nothing
+
+-- cmdType :: TypeState -> Cmd -> Maybe (State, Maybe Type)
+-- cmdType oldstate (Def name funcdata) = case progType (buildFuncTypeState oldstate ) of
+--   Just t -> Just (ProgState vars (Map.insert name (FuncTypeData fff t)))
+--   Nothing -> Nothing
+-- cmdType (ProgTypeState vars funcs p) (Set name val) =
+--   case exprType (ProgTypeState vars funcs p) val of
+--     Just t -> case Map.lookup name vars of
+--       Just u -> case t == u of
+--         True -> Just (ProgTypeState (Map.insert name u vars) funcs p, Nothing)
+--         False -> Nothing
+--       Nothing -> Just (ProgTypeState (Map.insert name t vars) funcs p, Nothing)
+--     Nothing -> Nothing
+-- cmdType (ProgTypeState vars funcs p) (If condition block) =
+--   case exprEval (ProgTypeState vars funcs p) condition of
+--     Just TBool -> case progType (ProgTypeState vars funcs p) of
+--       Just t -> Just ((ProgTypeState vars funcs p), Just t)
+--       Nothing -> Nothing
+--     Nothing                      -> Nothing
+-- cmdType (ProgTypeState vars funcs p) (While condition block) =
+--   case exprEval (ProgTypeState vars funcs p) condition of
+--     Just TBool -> case progType (ProgTypeState vars funcs p) of
+--       Just t -> Just (ProgTypeState vars funcs p, Just t)
+--       Nothing -> Nothing
+--     Nothing                      -> Nothing
+-- cmdType (ProgTypeState vars funcs p) (Return expr1) =
+--   case exprType (ProgTypeState vars funcs p) expr1 of
+--     Just t -> Just (ProgTypeState vars funcs p, Just t)
+--     Nothing -> Nothing
+
+
+-- progType :: TypeState -> Maybe Type
+-- progType (ProgTypeState _    _     []      ) = Just TBool --base case
+-- progType (ProgTypeState vars funcs (x : xs)) = case cmdType (ProgTypeState vars funcs xs) x of
+--   Just (newstate, Nothing) -> progType newstate
+--   Just (_       , Just x ) -> Just x
+--   Nothing                   -> Nothing
+
+
 
 {-
 -- Compile the language to check for semantic errors that may occur such as datatype and syntax errors
