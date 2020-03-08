@@ -403,7 +403,7 @@ run p = prog (ProgState Map.empty Map.empty p)
 -- exprType _ (Literal (Int _)) = Just TInt
 -- exprType _ (Literal (Flt _)) = Just TFlt
 -- exprType _ (Literal (Boolean _)) = Just TBool
--- exprType (ProgTypeState vars funcs p) (Function name args) =
+-- exprType (ProgTypeState vars funcs p) (Function name args) = -- Might need to change this case to work with new function definition
 --   case Map.lookup name funcs of
 --     Just (FuncTypeData argtypes returntype) -> case checkFuncArgsType (ProgTypeState vars funcs p) args argtypes of
 --       True -> Just returntype
@@ -411,24 +411,24 @@ run p = prog (ProgState Map.empty Map.empty p)
 --     _ -> Nothing
 
 -- cmdType :: TypeState -> Cmd -> Maybe (State, Maybe Type)
--- cmdType oldstate (Def name funcdata) = case progType (buildFuncTypeState oldstate ) of
+-- cmdType oldstate (Def name funcdata) = case progType (buildFuncTypeState oldstate ) of -- This case is non-functional, needs to be rewritten to work with new function definition
 --   Just t -> Just (ProgState vars (Map.insert name (FuncTypeData fff t)))
 --   Nothing -> Nothing
 -- cmdType (ProgTypeState vars funcs p) (Set name val) =
 --   case exprType (ProgTypeState vars funcs p) val of
 --     Just t -> case Map.lookup name vars of
 --       Just u -> case t == u of
---         True -> Just (ProgTypeState (Map.insert name u vars) funcs p, Nothing)
+--         True -> Just (ProgTypeState vars funcs p, Nothing)
 --         False -> Nothing
 --       Nothing -> Just (ProgTypeState (Map.insert name t vars) funcs p, Nothing)
 --     Nothing -> Nothing
--- cmdType (ProgTypeState vars funcs p) (If condition block) =
+-- cmdType (ProgTypeState vars funcs p) (If condition block) = -- This case probably won't work, maybe prog is the wrong thing to call here.  possibly new function needed?  Issue here is that prog returns Error or a Type, and an if statement block doesn't necessarily return anything.
 --   case exprEval (ProgTypeState vars funcs p) condition of
 --     Just TBool -> case progType (ProgTypeState vars funcs p) of
 --       Just t -> Just ((ProgTypeState vars funcs p), Just t)
 --       Nothing -> Nothing
 --     Nothing                      -> Nothing
--- cmdType (ProgTypeState vars funcs p) (While condition block) =
+-- cmdType (ProgTypeState vars funcs p) (While condition block) = -- Same as the above comment
 --   case exprEval (ProgTypeState vars funcs p) condition of
 --     Just TBool -> case progType (ProgTypeState vars funcs p) of
 --       Just t -> Just (ProgTypeState vars funcs p, Just t)
