@@ -9,7 +9,14 @@ import qualified Data.Map.Strict               as Map
 import           Data.Maybe
 import           Prelude                 hiding ( EQ
                                                 , LT
+                                                , and
+                                                , or
+                                                , subtract
                                                 )
+
+--------------------------------------------------------------
+-- Core Language
+--------------------------------------------------------------
 
 data VarVal = Int Integer | Flt Float | Boolean Bool | IntList [Integer] | FloatList [Float] | BoolList [Bool]
     deriving Show
@@ -23,28 +30,22 @@ data FuncData = FuncDataCon [String] Prog
 type FuncAssociation = Map.Map String FuncData
 
 -- Numeric (only works for Floats and Ints) operations
-data NumOp = Add | Sub | Mul | Div
+data Operation = Add | Sub | Mul | Div | Equal | Less | And
     deriving Show
 
--- Operations on numeric values that produce a boolean value
-data CompNumOp = LT
-    deriving Show
-
-data CompOp = EQ
-    deriving Show
-
-data Expr = ExprNumOp NumOp Expr Expr
-          | ExprBinOp CompNumOp Expr Expr
-          | ExprCompOp CompOp Expr Expr
-          | ExprVar String
-          | ExprVal VarVal
-          | ExprElement String Int  -- Fetch the value of a specific element in a list ex: `a = b + myList[3]`
-          | ExprFunc String [Expr]
+-- Expressions evaluate to VarVal's.
+data Expr = Operation Operation Expr Expr -- Applies the operation to the 2 expressions to produce a VarVal.
+          | Not Expr -- Literal value. Negates Bool values.
+          | Variable String -- References a variable by the name (String). Evaluates to the value of the variable.
+          | Literal VarVal -- Literal value.
+          | Element String Int  -- Fetch the value of a specific element in a list ex: `a = b + myList[3]`
+          | Function String [Expr] -- Calls a function.
   deriving Show
 
-data Cmd = Def String FuncData
-         | Set String Expr
-         | SetIndex String Int Expr -- Assign a value to a specific element in a list ex: `myList[3] = 4`
+-- Cmd's modify state and may modify the program flow.
+data Cmd = Def String FuncData -- Define a function with a name specified by String, with parameters FuncData ex: `a = 5`.
+         | Set String Expr -- Assign the VarVal specified by Expr to the variable named by the String ex: `a = 5`.
+         | SetIndex String Int Expr -- Assign a value to a specific element in a list ex: `myList[3] = 4`.
          | If Expr Prog
          | While Expr Prog
          | Return Expr
@@ -54,23 +55,23 @@ data MaybeError x = Result x
                   | Error String
   deriving Show
 
+-- A program is composed a list of commands.
 type Prog = [Cmd]
 
+-- A program state includes the variables, functions, and the program itself.
 data State = ProgState VarAssociation FuncAssociation Prog
   deriving Show
 
--- *
--- * Syntactic sugar
--- *
+--------------------------------------------------------------
+-- Syntactic sugar
+--------------------------------------------------------------
 
-exprSum :: Expr -> Expr -> Expr
-exprSum = ExprNumOp Add
+or :: Expr -> Expr -> Expr
+or x y = Not (Operation And (Not x) (Not y)) -- Demorgan's law babyyy :)
 
-exprDiv :: Expr -> Expr -> Expr
-exprDiv = ExprNumOp Div
-
-exprEQ :: Expr -> Expr -> Expr
-exprEQ = ExprCompOp EQ
+--------------------------------------------------------------
+-- Evaluation
+--------------------------------------------------------------
 
 -- Builds a new state object for use in a function call.  Takes arguments in this order: current program state, list of expr to fill args, list of arg names, empty var map (to be built), function definitions (to be passed), program block to execute
 buildFuncState
@@ -96,66 +97,80 @@ getFuncProg (FuncDataCon _ prog) = prog
 -- Utility function to get an arg name list out of the function map data
 getFuncArgs :: FuncData -> [String]
 getFuncArgs (FuncDataCon args _) = args
+
+-- Perform the add operation.
+add :: VarVal -> VarVal -> MaybeError VarVal
+add (Int x) (Int y) = Result (Int (x + y))
+add (Flt x) (Flt y) = Result (Flt (x + y))
+add _ _ =
+  Error "Type Error: `add` is not defined for mismatched or non-numeric types."
+
+-- Perform the sub operation.
+subtract :: VarVal -> VarVal -> MaybeError VarVal
+subtract (Int x) (Int y) = Result (Int (x - y))
+subtract (Flt x) (Flt y) = Result (Flt (x - y))
+subtract _ _ =
+  Error "Type Error: `sub` is not defined for mismatched or non-numeric types."
+
+-- Perform the mul operation.
+multiply :: VarVal -> VarVal -> MaybeError VarVal
+multiply (Int x) (Int y) = Result (Int (x * y))
+multiply (Flt x) (Flt y) = Result (Flt (x * y))
+multiply _ _ =
+  Error "Type Error: `mul` is not defined for mismatched or non-numeric types."
+
+-- Perform the div operation.
+divide :: VarVal -> VarVal -> MaybeError VarVal
+divide (Int x) (Int y) = Result (Int (div x y))
+divide (Flt x) (Flt y) = Result (Flt (x / y))
+divide _ _ =
+  Error "Type Error: `div` is not defined for mismatched or non-numeric types."
+
+-- Perform the equal operation.
+equal :: VarVal -> VarVal -> MaybeError VarVal
+equal (Int     x) (Int     y) = Result (Boolean (x == y))
+equal (Flt     x) (Flt     y) = Result (Boolean (x == y))
+equal (Boolean x) (Boolean y) = Result (Boolean (x == y))
+equal _ _ = Error "Type Error: `mul` is not defined for mismatched types."
+
+-- Perform the less than operation.
+less :: VarVal -> VarVal -> MaybeError VarVal
+less (Int x) (Int y) = Result (Boolean (x < y))
+less (Flt x) (Flt y) = Result (Boolean (x < y))
+less _ _ =
+  Error "Type Error: `mul` is not defined for mismatched or non-numeric types."
+
+-- Perform the and operation.
+and :: VarVal -> VarVal -> MaybeError VarVal
+and (Boolean x) (Boolean y) = Result (Boolean (x && y))
+and _ _ = Error "Type Error: `and` is only defined for boolean types."
+
 -- Applies a numeric operataion to a pair of Floats
-floatOpEval :: NumOp -> Float -> Float -> VarVal
-floatOpEval Add x y = Flt (x + y)
-floatOpEval Sub x y = Flt (x - y)
-floatOpEval Mul x y = Flt (x * y)
-floatOpEval Div x y = Flt (x / y)
+operationEval :: Operation -> VarVal -> VarVal -> MaybeError VarVal
+operationEval Add   x y = add x y
+operationEval Sub   x y = subtract x y
+operationEval Mul   x y = multiply x y
+operationEval Div   x y = divide x y
+operationEval Equal x y = equal x y
+operationEval Less  x y = less x y
+operationEval And   x y = and x y
 
--- Applies a numeric operataion to a pair of Ints
-intOpEval :: NumOp -> Integer -> Integer -> VarVal
-intOpEval Add x y = Int (x + y)
-intOpEval Sub x y = Int (x - y)
-intOpEval Mul x y = Int (x * y)
-intOpEval Div x y = Int (div x y) -- Force integer division
-
--- Applies a comparison operataion to a pair of Floats
-floatBinOpEval :: CompNumOp -> Float -> Float -> VarVal
-floatBinOpEval LT x y = Boolean (x < y)
-
--- Applies a comparison operataion to a pair of Ints
-intBinOpEval :: CompNumOp -> Integer -> Integer -> VarVal
-intBinOpEval LT x y = Boolean (x < y)
-
-boolCompOpEval :: CompOp -> Bool -> Bool -> VarVal
-boolCompOpEval EQ x y = Boolean (x == y)
-
-floatCompOpEval :: CompOp -> Float -> Float -> VarVal
-floatCompOpEval EQ x y = Boolean (x == y)
-
-intCompOpEval :: CompOp -> Integer -> Integer -> VarVal
-intCompOpEval EQ x y = Boolean (x == y)
-
--- ??
+-- Evaluates an expression to produce a VarVal or, if something is wrong, an Error.
 exprEval :: State -> Expr -> MaybeError VarVal
-exprEval oldstate (ExprNumOp oper expr1 expr2) =
+exprEval oldstate (Operation oper expr1 expr2) =
   case (exprEval oldstate expr1, exprEval oldstate expr2) of
-    (Result (Int x), Result (Int y)) -> Result (intOpEval oper x y)
-    (Result (Flt x), Result (Flt y)) -> Result (floatOpEval oper x y)
-    (Error s       , _)              -> Error s
-    (_             , Error s)        -> Error s
-    _                                -> Error "Type Error"
-exprEval oldstate (ExprBinOp oper expr1 expr2) =
-  case (exprEval oldstate expr1, exprEval oldstate expr2) of
-    (Result (Int x), Result (Int y)) -> Result (intBinOpEval oper x y)
-    (Result (Flt x), Result (Flt y)) -> Result (floatBinOpEval oper x y)
-    (Error s       , _)              -> Error s
-    (_             , Error s)        -> Error s
-    _                                -> Error "Type Error"
-exprEval oldstate (ExprCompOp oper expr1 expr2) =
-  case (exprEval oldstate expr1, exprEval oldstate expr2) of
-    (Result (Int x), Result (Int y))         -> Result (intCompOpEval oper x y)
-    (Result (Flt x), Result (Flt y))         -> Result (floatCompOpEval oper x y)
-    (Result (Boolean x), Result (Boolean y)) -> Result (boolCompOpEval oper x y)
-    (Error s       , _)                      -> Error s
-    (_             , Error s)                -> Error s
-    _                                        -> Error "Type Error"
-exprEval (ProgState vars _ _) (ExprVar name) = case Map.lookup name vars of
+    (Result x, Result y) -> operationEval oper x y
+    (Error  s, _       ) -> Error s
+    (_       , Error s ) -> Error s
+exprEval oldstate (Not expr) = case exprEval oldstate expr of
+  Result (Boolean True ) -> Result (Boolean False)
+  Result (Boolean False) -> Result (Boolean True)
+  _                      -> Error "`not` is only defined for Boolean values."
+exprEval (ProgState vars _ _) (Variable name) = case Map.lookup name vars of
   Just val -> Result val
   _        -> Error "Variable not found"
-exprEval _ (ExprVal val) = Result val
-exprEval (ProgState vars funcs p) (ExprFunc name args) =
+exprEval _ (Literal val) = Result val
+exprEval (ProgState vars funcs p) (Function name args) =
   case Map.lookup name funcs of
     Just func ->
       case
@@ -170,7 +185,7 @@ exprEval (ProgState vars funcs p) (ExprFunc name args) =
           Error  s        -> Error s
     _ -> Error "Function not found"
 
--- Evaluate currently executing command.  Loops and Conditionals are handled by injecting commands onto the current state's program.
+-- Evaluate currently executing command. Loops and Conditionals are handled by injecting commands onto the current state's program.
 cmd :: State -> Cmd -> MaybeError (State, Maybe VarVal)
 cmd (ProgState vars funcs p) (Def name funcdata) =
   Result (ProgState vars (Map.insert name funcdata funcs) p, Nothing)
