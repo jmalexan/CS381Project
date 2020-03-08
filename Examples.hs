@@ -34,7 +34,7 @@ badProg =
     (FuncDataCon
       ["asdf"]
       [ Set "b" (Operation Add (Literal (Int 777)) (Variable "asdf"))
-      , Set "b" (Operation Div (Variable "b") (Literal (Flt 2)))
+      , Set "b" (Operation Div (Variable "b") (Literal (Float 2)))
       , Return (Variable "b")
       ]
     )
