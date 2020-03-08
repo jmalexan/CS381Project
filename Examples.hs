@@ -1,11 +1,7 @@
 module Examples where
 
 import           Language
-import qualified Data.Map.Strict               as Map
-import           Data.Maybe
-import           Prelude                 hiding ( EQ
-                                                , LT
-                                                , and
+import           Prelude                 hiding ( and
                                                 , or
                                                 , subtract
                                                 )
@@ -56,3 +52,10 @@ testOr1 = [Return (or (Literal (Boolean True)) (Literal (Boolean False)))]
 
 testOr2 :: Prog
 testOr2 = [Return (or (Literal (Boolean False)) (Literal (Boolean False)))]
+
+testListAppend :: Prog
+testListAppend =
+  [ Set "myList" (Literal (IntList [1, 2, 3]))
+  , Index "myList" (Literal (Int 0)) (Literal (Int 0))
+  , Return (Variable "myList")
+  ]

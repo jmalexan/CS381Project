@@ -18,7 +18,7 @@ import           Prelude                 hiding ( EQ
 -- Core Language
 --------------------------------------------------------------
 
-data VarVal = Int Integer | Flt Float | Boolean Bool | IntList [Integer] | FloatList [Float] | BoolList [Bool]
+data VarVal = Int Integer | Float Float | Boolean Bool | IntList [Integer] | FloatList [Float] | BoolList [Bool]
     deriving Show
 
 data Type = TInt | TFlt | TBool | TIntList | TFltList | TBoolList
@@ -45,14 +45,15 @@ data Expr = Operation Operation Expr Expr -- Applies the operation to the 2 expr
           | Not Expr -- Literal value. Negates Bool values.
           | Variable String -- References a variable by the name (String). Evaluates to the value of the variable.
           | Literal VarVal -- Literal value.
-          | Element String Int  -- Fetch the value of a specific element in a list ex: `a = b + myList[3]`
+          | Element String Expr  -- Fetch the value of a specific element in a list ex: `a = b + myList[3]`
+          | Length String -- Get the length of a list
           | Function String [Expr] -- Calls a function.
   deriving Show
 
 -- Cmd's modify state and may modify the program flow.
 data Cmd = Def String FuncData -- Define a function with a name specified by String, with parameters FuncData ex: `a = 5`.
          | Set String Expr -- Assign the VarVal specified by Expr to the variable named by the String ex: `a = 5`.
-         | SetIndex String Int Expr -- Assign a value to a specific element in a list ex: `myList[3] = 4`.
+         | Index String Expr Expr -- Assign a value to a specific element in a list ex: `myList[3] = 4`.
          | If Expr Prog
          | While Expr Prog
          | Return Expr
@@ -78,6 +79,16 @@ data TypeState = ProgTypeState VarTypeAssociation FuncAssociation Prog
 
 or :: Expr -> Expr -> Expr
 or x y = Not (Operation And (Not x) (Not y)) -- Demorgan's law babyyy :)
+
+-- TODO: For each
+
+--------------------------------------------------------------
+-- Built-in Library
+--------------------------------------------------------------
+
+-- TODO: Append ?
+
+-- TODO: Prepend ?
 
 --------------------------------------------------------------
 -- Evaluation
@@ -110,43 +121,43 @@ getFuncArgs (FuncDataCon args _) = args
 
 -- Perform the add operation.
 add :: VarVal -> VarVal -> MaybeError VarVal
-add (Int x) (Int y) = Result (Int (x + y))
-add (Flt x) (Flt y) = Result (Flt (x + y))
+add (Int   x) (Int   y) = Result (Int (x + y))
+add (Float x) (Float y) = Result (Float (x + y))
 add _ _ =
   Error "Type Error: `add` is not defined for mismatched or non-numeric types."
 
 -- Perform the sub operation.
 subtract :: VarVal -> VarVal -> MaybeError VarVal
-subtract (Int x) (Int y) = Result (Int (x - y))
-subtract (Flt x) (Flt y) = Result (Flt (x - y))
+subtract (Int   x) (Int   y) = Result (Int (x - y))
+subtract (Float x) (Float y) = Result (Float (x - y))
 subtract _ _ =
   Error "Type Error: `sub` is not defined for mismatched or non-numeric types."
 
 -- Perform the mul operation.
 multiply :: VarVal -> VarVal -> MaybeError VarVal
-multiply (Int x) (Int y) = Result (Int (x * y))
-multiply (Flt x) (Flt y) = Result (Flt (x * y))
+multiply (Int   x) (Int   y) = Result (Int (x * y))
+multiply (Float x) (Float y) = Result (Float (x * y))
 multiply _ _ =
   Error "Type Error: `mul` is not defined for mismatched or non-numeric types."
 
 -- Perform the div operation.
 divide :: VarVal -> VarVal -> MaybeError VarVal
-divide (Int x) (Int y) = Result (Int (div x y))
-divide (Flt x) (Flt y) = Result (Flt (x / y))
+divide (Int   x) (Int   y) = Result (Int (div x y))
+divide (Float x) (Float y) = Result (Float (x / y))
 divide _ _ =
   Error "Type Error: `div` is not defined for mismatched or non-numeric types."
 
 -- Perform the equal operation.
 equal :: VarVal -> VarVal -> MaybeError VarVal
 equal (Int     x) (Int     y) = Result (Boolean (x == y))
-equal (Flt     x) (Flt     y) = Result (Boolean (x == y))
+equal (Float   x) (Float   y) = Result (Boolean (x == y))
 equal (Boolean x) (Boolean y) = Result (Boolean (x == y))
 equal _ _ = Error "Type Error: `mul` is not defined for mismatched types."
 
 -- Perform the less than operation.
 less :: VarVal -> VarVal -> MaybeError VarVal
-less (Int x) (Int y) = Result (Boolean (x < y))
-less (Flt x) (Flt y) = Result (Boolean (x < y))
+less (Int   x) (Int   y) = Result (Boolean (x < y))
+less (Float x) (Float y) = Result (Boolean (x < y))
 less _ _ =
   Error "Type Error: `mul` is not defined for mismatched or non-numeric types."
 
@@ -165,6 +176,22 @@ operationEval Equal x y = equal x y
 operationEval Less  x y = less x y
 operationEval And   x y = and x y
 
+element :: [a] -> Integer -> Maybe a
+element []            _ = Nothing -- Out of range
+element (elem : list) 0 = Just elem -- Desired
+element (elem : list) i = element list (i - 1)
+
+getElement :: VarVal -> Integer -> MaybeError VarVal
+getElement (FloatList list) index = case element list index of
+  Just value -> Result (Float value)
+  Nothing    -> Error "Index Error: Index out of range"
+getElement (IntList list) index = case element list index of
+  Just value -> Result (Int value)
+  Nothing    -> Error "Index Error: Index out of range"
+getElement (BoolList list) index = case element list index of
+  Just value -> Result (Boolean value)
+  Nothing    -> Error "Index Error: Index out of range"
+
 -- Evaluates an expression to produce a VarVal or, if something is wrong, an Error.
 exprEval :: State -> Expr -> MaybeError VarVal
 exprEval oldstate (Operation oper expr1 expr2) =
@@ -178,8 +205,17 @@ exprEval oldstate (Not expr) = case exprEval oldstate expr of
   _                      -> Error "`not` is only defined for Boolean values."
 exprEval (ProgState vars _ _) (Variable name) = case Map.lookup name vars of
   Just val -> Result val
-  _        -> Error "Variable not found"
+  _        -> Error ("Variable '" ++ name ++ "'reference before assignment.")
 exprEval _ (Literal val) = Result val
+exprEval (ProgState vars funcs p) (Element name index) =
+  case (Map.lookup name vars, exprEval (ProgState vars funcs p) index) of
+    (Just list, Result (Int i)) -> case getElement list i of
+      Result value -> Result value
+      Error  s     -> Error s
+    (Just list, Result (_)) -> Error "Index must be an Int."
+    (Nothing, _) ->
+      Error ("Variable '" ++ name ++ "'reference before assignment.")
+    (_, Error s) -> Error s
 exprEval (ProgState vars funcs p) (Function name args) =
   case Map.lookup name funcs of
     Just func ->
@@ -193,7 +229,34 @@ exprEval (ProgState vars funcs p) (Function name args) =
         of
           Result newstate -> prog newstate
           Error  s        -> Error s
-    _ -> Error "Function not found"
+    _ -> Error ("Function '" ++ name ++ "' undefined")
+
+-- Params: List, Index, Value, New List
+insert :: [a] -> Integer -> a -> Maybe [a]
+insert list          0 v = Just (v : list)
+insert (head : list) i v = case insert list (i - 1) v of
+  Just newList -> Just (head : newList)
+  Nothing      -> Nothing
+insert [] _ _ = Nothing -- Out of range
+
+-- Parameters:  List      Index      Value     New List
+insertInList :: VarVal -> Integer -> VarVal -> MaybeError VarVal
+-- Insert a Float into a Float list
+insertInList (FloatList list) index (Float value) =
+  case insert list index value of
+    Just newList -> Result (FloatList newList)
+    Nothing      -> Error "Index Error: Index out of range"
+-- Insert an Int into an Int list
+insertInList (IntList list) index (Int value) = case insert list index value of
+  Just newList -> Result (IntList newList)
+  Nothing      -> Error "Index Error: Index out of range"
+-- Insert a Bool into a Bool list
+insertInList (BoolList list) index (Boolean value) =
+  case insert list index value of
+    Just newList -> Result (BoolList newList)
+    Nothing      -> Error "Index Error: Index out of range"
+-- Type error
+insertInList _ _ _ = Error "Type Error: Mismatch when inserting in list."
 
 -- Evaluate currently executing command. Loops and Conditionals are handled by injecting commands onto the current state's program.
 cmd :: State -> Cmd -> MaybeError (State, Maybe VarVal)
@@ -203,6 +266,21 @@ cmd (ProgState vars funcs p) (Set name val) =
   case exprEval (ProgState vars funcs p) val of
     Result v -> Result (ProgState (Map.insert name v vars) funcs p, Nothing)
     Error  s -> Error s
+cmd (ProgState vars funcs p) (Index name index val) =
+  case
+      ( exprEval (ProgState vars funcs p) (Variable name)
+      , exprEval (ProgState vars funcs p) index
+      , exprEval (ProgState vars funcs p) val
+      )
+    of
+      (Result l, Result (Int i), Result v) -> case insertInList l i v of -- Try to perform the insertion
+        Result newList ->  -- The insertion was successful, and created a new list with the element inserted
+          Result (ProgState (Map.insert name newList vars) funcs p, Nothing)
+        Error s -> Error s -- The insertion failed
+      (Result l, Result (_), Result v) -> Error "Index must be an Int."
+      (Error  s, _         , _       ) -> Error s
+      (_       , Error s   , _       ) -> Error s
+      (_       , _         , Error s ) -> Error s
 cmd (ProgState vars funcs p) (If condition block) =
   case exprEval (ProgState vars funcs p) condition of
     Result (Boolean True) ->
@@ -392,11 +470,11 @@ fncParser =
 
 expParser :: Expr -> CompVal
 expParser (_ (Int x1) (Int x2)) = Loaded
-expParser (_ (Flt x1) (Int x2)) = Datatypeerror
-expParser (_ (Int x1) (Flt x2)) = Datatypeerror
-expParser (_ (Flt x1) (Flt x2)) = Loaded
-expParser (_ (Boolean x1) (Flt x2)) = Datatypeerror
-expParser (_ (Flt x1) (Boolean x2)) = Datatypeerror
+expParser (_ (Float x1) (Int x2)) = Datatypeerror
+expParser (_ (Int x1) (Float x2)) = Datatypeerror
+expParser (_ (Float x1) (Float x2)) = Loaded
+expParser (_ (Boolean x1) (Float x2)) = Datatypeerror
+expParser (_ (Float x1) (Boolean x2)) = Datatypeerror
 expParser (_ (Boolean x1) (Boolean x2)) = Loaded
 expParser (_ (Int x1) (Boolean x2)) = Datat
 expParser (_ (Boolean x1) (Int x2)) = Datatypeerror

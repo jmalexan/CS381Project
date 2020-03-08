@@ -26,24 +26,27 @@ Static type system : A user attempting to write and use code in the programming 
 
 ## Todo:
 - Develop Static Type system.
-- Simplify language core by using nested types for constructors that take same number of args.
-- Simplify language core by moving some features to synactic sugar.
-- Add lists.
-    - Add getting elements.
-    - Add assigning expressions to elements.
-    - Add (via syntactic sugar) a way to iterate for each element
-    - Add getting length (library level?)
-    - Add appending (library level?)
-    - Add removing (library level?)
-    - Add inserting (library level?)
-- Add simple `doctest` unit tests to assess whether the core features of the language work ok-ish enough.
+- Lists:
+    - Getting length (core).
+    - Iterate for each element (syntactic sugar).
+    - Deleting elements (syntactic sugar using for each).
+    - Assigning expressions at index (syntactic sugar using for each).
+    - Appending (syntactic sugar).
+- Add context to errors using the fact we capture the Error text everywhere.
+- Expand unit tests to cover more of the language.
 - 💡 Spike: Research `do` notation and monads.
 - 💡 Spike: Hinley Milner type checking
 
 ## Done
-- Learn how to use Map
-- Develop the abstract syntax (grammar)
-- Create semantic domain
-- Write example functions for testing
+- Add simple `doctest` unit tests.
+- Lists:
+    - Inserting expressions at index (core)..
+    - Getting elements (core).
+- Learn how to use Map.
+- Simplify language core by using nested types for constructors that take same number of args.
+- Simplify language core by moving some features to synactic sugar.
+- Develop the abstract syntax (grammar).
+- Create semantic domain.
+- Write example functions for testing.
 - Move return parsing into `cmd` and change `prog` to check the result of cmd.
 - Add custom exceptions (??) instead of using falling back on pattern match failure errors.
