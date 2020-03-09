@@ -121,7 +121,8 @@ getFuncArgs :: FuncData -> [String]
 getFuncArgs (FuncDataCon args _) = args
 
 -- Perform the add operation.
-add :: VarVal -> VarVal -> MaybeError VarVal
+add :: VarVal ->
+ VarVal -> MaybeError VarVal
 add (Int   x) (Int   y) = Result (Int (x + y))
 add (Float x) (Float y) = Result (Float (x + y))
 add _ _ =
@@ -450,42 +451,61 @@ run p = prog (ProgState Map.empty Map.empty p)
 
 
 
-{-
+
 -- Compile the language to check for semantic errors that may occur such as datatype and syntax errors
 -- Compile - Primary function evaluating commands from a program
+isLoaded :: CompVal -> Bool
+isLoaded Loaded = True
+isLoaded _ = False
+
+isSyntaxError :: CompVal -> Bool
+isSyntaxError Syntaxerror = True
+isSyntaxError _ = False
+
+isDataError :: CompVal -> Bool
+isDataError Datatypeerror = True
+isDataError _ = False
+
+checkVarVal :: Expr -> Bool
+checkVarVal (Literal _) = True
+checkVarVal _ = False
 
 compile :: Prog -> CompVal
-compile ((Def str fnc):xs) =
-compile ((Set str exp):xs) =
-compile ((If exp nprog):xs) =
-compile ((While exp nprog):xs) =
-compile ((Return exp):xs) =
 
--- FncParser - Submodule used to parse through Functions and Function Data
+-- Used to evaluate literal values to match with other booleans
 
-fncParser :: FuncData -> CompVal
-fncParser =
+compileVarVal :: VarVal -> CompVal
+compileVarVal _ = Loaded
 
--- ExpParser - Submodule used to parse through Expressions and Match Data
--- Errors here  - I have gotten the syntax wrong ;-; - Faaiq
+compileFuncData :: FuncData -> CompVal
 
-expParser :: Expr -> CompVal
-expParser (_ (Int x1) (Int x2)) = Loaded
-expParser (_ (Float x1) (Int x2)) = Datatypeerror
-expParser (_ (Int x1) (Float x2)) = Datatypeerror
-expParser (_ (Float x1) (Float x2)) = Loaded
-expParser (_ (Boolean x1) (Float x2)) = Datatypeerror
-expParser (_ (Float x1) (Boolean x2)) = Datatypeerror
-expParser (_ (Boolean x1) (Boolean x2)) = Loaded
-expParser (_ (Int x1) (Boolean x2)) = Datat
-expParser (_ (Boolean x1) (Int x2)) = Datatypeerror
+compileFuncType :: FuncTypeData -> CompVal
 
-expParser(ExpVar str) =
-expParser(ExpVal val) =
+compileOperation :: Operation -> CompVal
 
--- IsLoaded - Submodule used to return boolean :: Useful for Combining Parsers
+-- Compile Expr - Used to parse through expressiosn
 
-isLoaded :: CompVal -> Bool
-isLoaded (Loaded) = True
-isLoaded _ = False
--}
+compileExpr :: Expr -> CompVal
+compileExpr (Operation opr expr expr) = 
+compileExpr (Not expr) = 
+compileExpr (Literal VarVal) = 
+compileExpr (Element str expr) = 
+compileExpr (Length str) = 
+compileExpr (Function str exprs) =
+
+-- Compile CmD - Used to parse through command expressions
+
+compileCmd :: Cmd -> CompVal
+compileCmd (Def str fdta) = compileFuncData fdta
+compileCmd (Set str expr) = case of (checkVarVal(expr))
+					True -> Loaded
+					_    -> Datatypeerror
+compileCmd (If expr prog) = case of (isLoaded(compileExpr expr) && isLoaded(compile prog))
+										True -> Loaded
+										_    -> Syntaxerror
+compileCmd (While expr prog) = case of (isLoaded(compileExpr expr) && isLoaded(compile prog))
+										True -> Loaded
+										_    -> Syntaxerror
+compileCmd (Macro cmd) = compileCmd cmd
+compileCmd (Return expr) = compileExpr expr
+				 
