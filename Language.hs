@@ -313,7 +313,7 @@ prog (ProgState vars funcs (x : xs)) = case cmd (ProgState vars funcs xs) x of
 -- Runs a program by initializing an empty state and processing the program
 run :: Prog -> MaybeError VarVal
 run p = prog (ProgState Map.empty Map.empty p)
-
+https://www.fasebj.org/doi/abs/10.1096/fasebj.2019.33.1_supplement.204.3
 
 
 -- -- Builds a new state object for use in a function call.  Takes arguments in this order: current program state, list of expr to fill args, list of arg names, empty var map (to be built), function definitions (to be passed), program block to execute
@@ -473,7 +473,7 @@ checkVarVal _ = False
 compile :: Prog -> CompVal
 
 -- Used to evaluate literal values to match with other booleans
-
+{-
 compileVarVal :: VarVal -> CompVal
 compileVarVal _ = Loaded
 
@@ -486,26 +486,36 @@ compileOperation :: Operation -> CompVal
 -- Compile Expr - Used to parse through expressiosn
 
 compileExpr :: Expr -> CompVal
-compileExpr (Operation opr expr expr) = 
+compileExpr (Operation opr exprone exprtwo) = 
 compileExpr (Not expr) = 
-compileExpr (Literal VarVal) = 
-compileExpr (Element str expr) = 
-compileExpr (Length str) = 
-compileExpr (Function str exprs) =
+compileExpr (Literal VarVal) = Loaded
+compileExpr (Element str expr) = compileExpr expr
+compileExpr (Length str) = Loaded
+compileExpr (Function str exprs) = compileExprs exprs
+
+compileExprs :: [Expr] -> CompVal
+compileExprs [] = Loaded
+compileExprs (x:xs) = 
+	case of (isLoaded(compileExpr x) && isLoaded(compileExprs xs))
+		True -> Loaded
+		_    -> Syntaxerror
 
 -- Compile CmD - Used to parse through command expressions
 
 compileCmd :: Cmd -> CompVal
 compileCmd (Def str fdta) = compileFuncData fdta
-compileCmd (Set str expr) = case of (checkVarVal(expr))
-					True -> Loaded
-					_    -> Datatypeerror
-compileCmd (If expr prog) = case of (isLoaded(compileExpr expr) && isLoaded(compile prog))
-										True -> Loaded
-										_    -> Syntaxerror
-compileCmd (While expr prog) = case of (isLoaded(compileExpr expr) && isLoaded(compile prog))
-										True -> Loaded
-										_    -> Syntaxerror
+compileCmd (Set str expr) = 
+	case of (checkVarVal(expr))
+		True -> Loaded
+		_    -> Datatypeerror
+compileCmd (If expr prog) = 
+	case of (isLoaded(compileExpr expr) && isLoaded(compile prog))
+		True -> Loaded
+		_    -> Syntaxerror
+compileCmd (While expr prog) = 
+	case of (isLoaded(compileExpr expr) && isLoaded(compile prog))
+		True -> Loaded
+		_    -> Syntaxerror
 compileCmd (Macro cmd) = compileCmd cmd
 compileCmd (Return expr) = compileExpr expr
-				 
+-}				 
