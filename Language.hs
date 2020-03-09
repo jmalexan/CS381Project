@@ -18,22 +18,45 @@ import           Prelude                 hiding ( EQ
 -- Core Language
 --------------------------------------------------------------
 
-data VarVal = Int Integer | Float Float | Boolean Bool | IntList [Integer] | FloatList [Float] | BoolList [Bool]
+-- A literal value that can be stored in a variable or passed as a parameter.
+data VarVal = Int Integer
+            | Float Float
+            | Boolean Bool
+            | IntList [Integer]
+            | FloatList [Float]
+            | BoolList [Bool]
     deriving Show
 
-data Type = TInt | TFlt | TBool | TIntList | TFltList | TBoolList
+-- ??
+data Type = TInt
+          | TFlt
+          | TBool
+          | TIntList
+          | TFltList
+          | TBoolList
     deriving Show
 
+-- ??
 data CompVal = Loaded | Syntaxerror | Datatypeerror
     deriving Show
 
+-- Maps variable names to the stored value.
 type VarAssociation = Map.Map String VarVal
+
+-- The data associated with a function.
 data FuncData = FuncDataCon [String] Prog
   deriving Show
+
+-- The types associated with a function.
 data FuncTypeData = FuncTypeDataCon [Type] Type
+
+-- Maps function names to the desired function.
 type FuncAssociation = Map.Map String FuncData
+
+-- Maps function names to the type of the function.
 type FuncTypeAssociation = Map.Map String FuncData
 
+-- Maps variable names to the type of the variable.
 type VarTypeAssociation = Map.Map String Type
 
 -- Numeric (only works for Floats and Ints) operations
@@ -100,7 +123,7 @@ buildFuncState
   :: State
   -> [Expr]
   -> [String]
-  -> VarAssociation 
+  -> VarAssociation
   -> FuncAssociation
   -> Prog
   -> MaybeError State
@@ -121,8 +144,7 @@ getFuncArgs :: FuncData -> [String]
 getFuncArgs (FuncDataCon args _) = args
 
 -- Perform the add operation.
-add :: VarVal ->
- VarVal -> MaybeError VarVal
+add :: VarVal -> VarVal -> MaybeError VarVal
 add (Int   x) (Int   y) = Result (Int (x + y))
 add (Float x) (Float y) = Result (Float (x + y))
 add _ _ =
@@ -321,7 +343,7 @@ https://www.fasebj.org/doi/abs/10.1096/fasebj.2019.33.1_supplement.204.3
 --   :: TypeState
 --   -> [Expr]
 --   -> [String]
---   -> VarTypeAssociation 
+--   -> VarTypeAssociation
 --   -> FuncTypeAssociation
 --   -> Prog
 --   -> Maybe TypeState
@@ -456,19 +478,19 @@ https://www.fasebj.org/doi/abs/10.1096/fasebj.2019.33.1_supplement.204.3
 -- Compile - Primary function evaluating commands from a program
 isLoaded :: CompVal -> Bool
 isLoaded Loaded = True
-isLoaded _ = False
+isLoaded _      = False
 
 isSyntaxError :: CompVal -> Bool
 isSyntaxError Syntaxerror = True
-isSyntaxError _ = False
+isSyntaxError _           = False
 
 isDataError :: CompVal -> Bool
 isDataError Datatypeerror = True
-isDataError _ = False
+isDataError _             = False
 
 checkVarVal :: Expr -> Bool
 checkVarVal (Literal _) = True
-checkVarVal _ = False
+checkVarVal _           = False
 
 compile :: Prog -> CompVal
 
@@ -486,8 +508,8 @@ compileOperation :: Operation -> CompVal
 -- Compile Expr - Used to parse through expressiosn
 
 compileExpr :: Expr -> CompVal
-compileExpr (Operation opr exprone exprtwo) = 
-compileExpr (Not expr) = 
+compileExpr (Operation opr exprone exprtwo) =
+compileExpr (Not expr) =
 compileExpr (Literal VarVal) = Loaded
 compileExpr (Element str expr) = compileExpr expr
 compileExpr (Length str) = Loaded
@@ -495,7 +517,7 @@ compileExpr (Function str exprs) = compileExprs exprs
 
 compileExprs :: [Expr] -> CompVal
 compileExprs [] = Loaded
-compileExprs (x:xs) = 
+compileExprs (x:xs) =
 	case of (isLoaded(compileExpr x) && isLoaded(compileExprs xs))
 		True -> Loaded
 		_    -> Syntaxerror
@@ -504,18 +526,18 @@ compileExprs (x:xs) =
 
 compileCmd :: Cmd -> CompVal
 compileCmd (Def str fdta) = compileFuncData fdta
-compileCmd (Set str expr) = 
+compileCmd (Set str expr) =
 	case of (checkVarVal(expr))
 		True -> Loaded
 		_    -> Datatypeerror
-compileCmd (If expr prog) = 
+compileCmd (If expr prog) =
 	case of (isLoaded(compileExpr expr) && isLoaded(compile prog))
 		True -> Loaded
 		_    -> Syntaxerror
-compileCmd (While expr prog) = 
+compileCmd (While expr prog) =
 	case of (isLoaded(compileExpr expr) && isLoaded(compile prog))
 		True -> Loaded
 		_    -> Syntaxerror
 compileCmd (Macro cmd) = compileCmd cmd
 compileCmd (Return expr) = compileExpr expr
--}				 
+-}
