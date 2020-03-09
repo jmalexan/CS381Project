@@ -298,12 +298,37 @@ insertInList (BoolList list) index (Boolean value) =
 -- Type error
 insertInList _ _ _ = Error "Type Error: Mismatch when inserting in list."
 
--- Maps a vairable name and value pair to a small program
+-- Params: List, Index, Value, New List
+delete :: [a] -> Int -> Maybe [a]
+delete (head : list) 0 = Just list -- Remove element
+delete (head : list) i = case delete list (i - 1) of
+  Just newList -> Just (head : newList)
+  Nothing      -> Nothing
+delete [] _ = Nothing -- Out of range
+
+-- Parameters:  List      Index  New List
+deleteFromList :: VarVal -> Int -> MaybeError VarVal
+-- Delete from a Float list
+deleteFromList (FloatList list) index = case delete list index of
+  Just newList -> Result (FloatList newList)
+  Nothing      -> Error "Index Error: Index out of range"
+-- Delete from an Int list
+deleteFromList (IntList list) index = case delete list index of
+  Just newList -> Result (IntList newList)
+  Nothing      -> Error "Index Error: Index out of range"
+-- Delete from a Bool list
+deleteFromList (BoolList list) index = case delete list index of
+  Just newList -> Result (BoolList newList)
+  Nothing      -> Error "Index Error: Index out of range"
+
+-- Maps a variable name, list of varVals, and block of code and copies the block for
+-- each item, setting the name to hold each element in each block.
 forEachProgram :: String -> [VarVal] -> Prog -> Prog
 forEachProgram _ [] _ = []
 forEachProgram name (element : list) block =
   (blockInForEach name element block) ++ (forEachProgram name list block)
 
+ -- Utility helper for forEachProgram that produces a program: assign element to var (String), block of code
 blockInForEach :: String -> VarVal -> Prog -> Prog
 blockInForEach name element innerBlock =
   [Set name (Literal element)] ++ innerBlock
@@ -324,13 +349,26 @@ cmd (ProgState vars funcs p) (Index name index val) =
       )
     of
       (Result l, Result (Int i), Result v) -> case insertInList l i v of -- Try to perform the insertion
-        Result newList ->  -- The insertion was successful, and created a new list with the element inserted
+        Result newList ->  -- The insertion was successful, and created a new list with the element inserted.
           Result (ProgState (Map.insert name newList vars) funcs p, Nothing)
-        Error s -> Error s -- The insertion failed
+        Error s -> Error s -- The insertion failed.
       (Result l, Result (_), Result v) -> Error "Index must be an Int."
       (Error  s, _         , _       ) -> Error s
       (_       , Error s   , _       ) -> Error s
       (_       , _         , Error s ) -> Error s
+cmd (ProgState vars funcs p) (Delete name index) =
+  case
+      ( exprEval (ProgState vars funcs p) (Variable name)
+      , exprEval (ProgState vars funcs p) index
+      )
+    of
+      (Result l, Result (Int i)) -> case deleteFromList l i of -- Try to perform the insertion
+        Result newList ->  -- The deletion was successful, and created a new list with the element deleted.
+          Result (ProgState (Map.insert name newList vars) funcs p, Nothing)
+        Error s -> Error s -- The deletion failed
+      (Result l, Result (_)) -> Error "Index must be an Int."
+      (Error  s, _         ) -> Error s
+      (_       , Error s   ) -> Error s
 cmd (ProgState vars funcs p) (If condition block) =
   case exprEval (ProgState vars funcs p) condition of
     Result (Boolean True) ->

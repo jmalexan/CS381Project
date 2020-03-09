@@ -54,3 +54,14 @@ testListAccess = run
     , Return (Element "myList" (Literal (Int 1)))
     ]
 
+-- | Testing the list deletion
+--
+--   >>> testListDeletion
+--   Result (IntList [0,1,3])
+--
+testListDeletion :: MaybeError VarVal
+testListDeletion = run
+    [ Set "myList" (Literal (IntList [0, 1, 2, 3]))
+    , Delete "myList" (Literal (Int 2))
+    , Return (Variable "myList")
+    ]
