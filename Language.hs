@@ -87,8 +87,8 @@ data Expr = Operation Operation Expr Expr -- Applies the operation to the 2 expr
 -- Cmd's modify state and may modify the program flow.
 data Cmd = Def String FuncData -- Define a function with a name specified by String, with parameters FuncData ex: `a = 5`.
          | Set String Expr -- Assign the VarVal specified by Expr to the variable named by the String ex: `a = 5`.
-         | Index String Expr Expr -- Assign a value to a specific element in a list ex: `myList[3] = 4`.
-         | Delete String Expr -- Deletes the element in list variable (w/ name `String`) at index (`Expr`).
+         | Insert String Expr Expr -- Assign a value to a specific element in a list ex: `myList[3] = 4`. (params: list name, index, value)
+         | Delete String Expr -- Deletes the element in list variable (w/ name `String`) at index (`Expr`). (params: list name, index)
          | If Expr Prog
          | While Expr Prog
          | ForEach String Expr Prog -- Iterates and performs block of code for each item in a list. Ex: For <var> in <list> { <prog> }
@@ -116,6 +116,11 @@ data TypeState = ProgTypeState VarTypeAssociation FuncAssociation Prog
 or :: Expr -> Expr -> Expr
 or x y = Not (Operation And (Not x) (Not y)) -- Demorgan's law babyyy :)
 
+-- i.e.: list[index] = value
+assign :: String -> Expr -> Expr -> Cmd
+assign list index value =
+  If (Literal (Boolean True)) [Delete list index, Insert list index value]
+
 
 --------------------------------------------------------------
 -- Built-in Library
@@ -124,10 +129,32 @@ or x y = Not (Operation And (Not x) (Not y)) -- Demorgan's law babyyy :)
 -- TODO: We need to compile the prelude and give the state after the prelude runs to each compiled program.
 
 prelude :: Prog
-prelude = []
+prelude =
+  [ Def -- Append: Takes list and element and returns list with element appended. (This will break when typeSystem is implemented)
+    "append"
+    (FuncDataCon
+      ["list", "element"]
+      [ Set "index" (Length "list") -- Get length of list
+      , Insert "list" (Variable "index") (Variable "element")
+      , Return (Variable "list")
+      ]
+    )
+  , Def -- Range: Takes and int and generates Int list [0...input].
+    "range"
+    (FuncDataCon
+      ["count"]
+      [ Set "index" (Literal (Int 0)) -- Get length of list
+      , Set "list"  (Literal (IntList []))
+      , While
+        (Operation Less (Variable "index") (Variable "count"))
+        [ Set "list" (Function "append" [Variable "list", Variable "index"]) -- Append
+        , Set "index" (Operation Add (Variable "index") (Literal (Int 1))) -- Increment index
+        ]
+      , Return (Variable "list")
+      ]
+    )
+  ]
 
--- TODO: Append
--- TODO: Prepend
 -- TODO: Range
 
 --------------------------------------------------------------
@@ -224,13 +251,20 @@ element (elem : list) i = element list (i - 1)
 getElement :: VarVal -> Int -> MaybeError VarVal
 getElement (FloatList list) index = case element list index of
   Just value -> Result (Float value)
-  Nothing    -> Error "Index Error: Index out of range"
+  Nothing    -> Error "Index Error: Index out of range."
 getElement (IntList list) index = case element list index of
   Just value -> Result (Int value)
-  Nothing    -> Error "Index Error: Index out of range"
+  Nothing    -> Error "Index Error: Index out of range."
 getElement (BoolList list) index = case element list index of
   Just value -> Result (Boolean value)
-  Nothing    -> Error "Index Error: Index out of range"
+  Nothing    -> Error "Index Error: Index out of range."
+getElement _ _ = Error "Type Error: List access only permitted for lists."
+
+getLength :: VarVal -> MaybeError VarVal
+getLength (FloatList list) = Result (Int (length list))
+getLength (IntList   list) = Result (Int (length list))
+getLength (BoolList  list) = Result (Int (length list))
+getLength _ = Error "Type Error: Length only permitted for lists."
 
 -- Evaluates an expression to produce a VarVal or, if something is wrong, an Error.
 exprEval :: State -> Expr -> MaybeError VarVal
@@ -248,14 +282,22 @@ exprEval (ProgState vars _ _) (Variable name) = case Map.lookup name vars of
   _        -> Error ("Variable '" ++ name ++ "'reference before assignment.")
 exprEval _ (Literal val) = Result val
 exprEval (ProgState vars funcs p) (Element name index) =
-  case (Map.lookup name vars, exprEval (ProgState vars funcs p) index) of
-    (Just list, Result (Int i)) -> case getElement list i of
+  case
+      ( exprEval (ProgState vars funcs p) (Variable name) -- Look up list
+      , exprEval (ProgState vars funcs p) index
+      )
+    of
+      (Result list, Result (Int i)) -> case getElement list i of
+        Result value -> Result value
+        Error  s     -> Error s
+      (Result list, Result (_)) -> Error "Index must be an Int."
+      (_          , Error s   ) -> Error s
+exprEval (ProgState vars funcs p) (Length name) =
+  case (exprEval (ProgState vars funcs p) (Variable name)) of -- Look up list
+    (Result list) -> case getLength list of
       Result value -> Result value
       Error  s     -> Error s
-    (Just list, Result (_)) -> Error "Index must be an Int."
-    (Nothing, _) ->
-      Error ("Variable '" ++ name ++ "'reference before assignment.")
-    (_, Error s) -> Error s
+    (Error s) -> Error s
 exprEval (ProgState vars funcs p) (Function name args) =
   case Map.lookup name funcs of
     Just func ->
@@ -271,7 +313,7 @@ exprEval (ProgState vars funcs p) (Function name args) =
           Error  s        -> Error s
     _ -> Error ("Function '" ++ name ++ "' undefined")
 
--- Params: List, Index, Value, New List
+-- Params: List, Insert, Value, New List
 insert :: [a] -> Int -> a -> Maybe [a]
 insert list          0 v = Just (v : list)
 insert (head : list) i v = case insert list (i - 1) v of
@@ -279,7 +321,7 @@ insert (head : list) i v = case insert list (i - 1) v of
   Nothing      -> Nothing
 insert [] _ _ = Nothing -- Out of range
 
--- Parameters:  List      Index      Value     New List
+-- Parameters:  List      Insert      Value     New List
 insertInList :: VarVal -> Int -> VarVal -> MaybeError VarVal
 -- Insert a Float into a Float list
 insertInList (FloatList list) index (Float value) =
@@ -298,7 +340,7 @@ insertInList (BoolList list) index (Boolean value) =
 -- Type error
 insertInList _ _ _ = Error "Type Error: Mismatch when inserting in list."
 
--- Params: List, Index, Value, New List
+-- Params: List, Insert, Value, New List
 delete :: [a] -> Int -> Maybe [a]
 delete (head : list) 0 = Just list -- Remove element
 delete (head : list) i = case delete list (i - 1) of
@@ -306,7 +348,7 @@ delete (head : list) i = case delete list (i - 1) of
   Nothing      -> Nothing
 delete [] _ = Nothing -- Out of range
 
--- Parameters:  List      Index  New List
+-- Parameters:  List      Insert  New List
 deleteFromList :: VarVal -> Int -> MaybeError VarVal
 -- Delete from a Float list
 deleteFromList (FloatList list) index = case delete list index of
@@ -341,7 +383,7 @@ cmd (ProgState vars funcs p) (Set name val) =
   case exprEval (ProgState vars funcs p) val of
     Result v -> Result (ProgState (Map.insert name v vars) funcs p, Nothing)
     Error  s -> Error s
-cmd (ProgState vars funcs p) (Index name index val) =
+cmd (ProgState vars funcs p) (Insert name index val) =
   case
       ( exprEval (ProgState vars funcs p) (Variable name)
       , exprEval (ProgState vars funcs p) index
@@ -352,7 +394,7 @@ cmd (ProgState vars funcs p) (Index name index val) =
         Result newList ->  -- The insertion was successful, and created a new list with the element inserted.
           Result (ProgState (Map.insert name newList vars) funcs p, Nothing)
         Error s -> Error s -- The insertion failed.
-      (Result l, Result (_), Result v) -> Error "Index must be an Int."
+      (Result l, Result (_), Result v) -> Error "Insert must be an Int."
       (Error  s, _         , _       ) -> Error s
       (_       , Error s   , _       ) -> Error s
       (_       , _         , Error s ) -> Error s
@@ -366,7 +408,7 @@ cmd (ProgState vars funcs p) (Delete name index) =
         Result newList ->  -- The deletion was successful, and created a new list with the element deleted.
           Result (ProgState (Map.insert name newList vars) funcs p, Nothing)
         Error s -> Error s -- The deletion failed
-      (Result l, Result (_)) -> Error "Index must be an Int."
+      (Result l, Result (_)) -> Error "Insert must be an Int."
       (Error  s, _         ) -> Error s
       (_       , Error s   ) -> Error s
 cmd (ProgState vars funcs p) (If condition block) =

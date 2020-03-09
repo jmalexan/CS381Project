@@ -63,12 +63,25 @@ sumListProg =
   ]
 
 -- An example program to show off the ability of lists by calculating factorial.
--- factorial :: Prog
--- factorial =
---   [ Set "x" (Literal (Int 6))
---   , Def "factorial" (FuncDataCon ["input"] [
---       ForEach "x" () Prog
---       Return (Literal (Int 0))
---     ])
---   , Return (Function "test" [Variable "x"])
---   ]
+factorial :: Prog
+factorial =
+  [ Def
+    "factorial"
+    (FuncDataCon
+      ["input"]
+      [ Set "factorial" (Literal (Int 1))
+      , ForEach
+        "x"
+        (Function "range" [Variable "input"])
+        [ Set
+            "factorial"
+            (Operation Mul
+                       (Variable "factorial")
+                       (Operation Add (Variable "x") (Literal (Int 1)))
+            )
+        ]
+      , Return (Variable "factorial")
+      ]
+    )
+  , Return (Function "factorial" [Literal (Int 6)])
+  ]

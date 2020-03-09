@@ -39,7 +39,7 @@ testListAssignment =
 testListInsertion :: MaybeError VarVal
 testListInsertion = run
     [ Set "myList" (Literal (IntList [1, 2, 3]))
-    , Index "myList" (Literal (Int 0)) (Literal (Int 0))
+    , Insert "myList" (Literal (Int 0)) (Literal (Int 0))
     , Return (Variable "myList")
     ]
 
@@ -65,3 +65,43 @@ testListDeletion = run
     , Delete "myList" (Literal (Int 2))
     , Return (Variable "myList")
     ]
+
+-- | Testing the list index assignment
+--
+--   >>> testListIndexing
+--   Result (IntList [0,8,2,3])
+--
+testListIndexing :: MaybeError VarVal
+testListIndexing = run
+    [ Set "myList" (Literal (IntList [0, 1, 2, 3]))
+    , assign "myList" (Literal (Int 1)) (Literal (Int 8))
+    , Return (Variable "myList")
+    ]
+
+-- | Testing list length
+--
+--   >>> testListLength
+--   Result (Int 4)
+--
+testListLength :: MaybeError VarVal
+testListLength = run
+    [Set "myList" (Literal (IntList [0, 1, 2, 3])), Return (Length "myList")]
+
+-- | Testing built-in append
+--
+--   >>> testListLength
+--   Result (Int 4)
+--
+testListAppend :: MaybeError VarVal
+testListAppend = run
+    [ Set "myList" (Literal (IntList [0, 1, 2, 3]))
+    , Return (Function "append" [Variable "myList", Literal (Int 4)])
+    ]
+
+-- | Testing built-in range
+--
+--   >>> testRange
+--   Result (IntList [0,1,2,3])
+--
+testRange :: MaybeError VarVal
+testRange = run [Return (Function "range" [Literal (Int 4)])]
