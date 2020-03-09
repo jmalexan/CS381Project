@@ -44,18 +44,31 @@ badProg =
   , Return (Variable "x")
   ]
 
-test1Prog :: Prog
-test1Prog = [Return (Operation Div (Literal (Int 5)) (Literal (Int 2)))]
-
-testOr1 :: Prog
-testOr1 = [Return (or (Literal (Boolean True)) (Literal (Boolean False)))]
-
-testOr2 :: Prog
-testOr2 = [Return (or (Literal (Boolean False)) (Literal (Boolean False)))]
-
-testListAppend :: Prog
-testListAppend =
-  [ Set "myList" (Literal (IntList [1, 2, 3]))
-  , Index "myList" (Literal (Int 0)) (Literal (Int 0))
-  , Return (Variable "myList")
+-- Shows off the for each functionality
+sumListProg :: Prog
+sumListProg =
+  [ Set "x" (Literal (IntList [1, 2, 3])) -- Modify this lest to test different inputs.
+  , Def
+    "sumList"
+    (FuncDataCon
+      ["inputList"]
+      [ Set "sum" (Literal (Int 0))
+      , ForEach "x"
+                (Variable "inputList")
+                [Set "sum" (Operation Add (Variable "sum") (Variable "x"))]
+      , Return (Variable "sum")
+      ]
+    )
+  , Return (Function "sumList" [Variable "x"])
   ]
+
+-- An example program to show off the ability of lists by calculating factorial.
+-- factorial :: Prog
+-- factorial =
+--   [ Set "x" (Literal (Int 6))
+--   , Def "factorial" (FuncDataCon ["input"] [
+--       ForEach "x" () Prog
+--       Return (Literal (Int 0))
+--     ])
+--   , Return (Function "test" [Variable "x"])
+--   ]

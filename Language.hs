@@ -9,6 +9,7 @@ import qualified Data.Map.Strict               as Map
 import           Data.Maybe
 import           Prelude                 hiding ( EQ
                                                 , LT
+                                                , List
                                                 , and
                                                 , or
                                                 , subtract
@@ -18,11 +19,21 @@ import           Prelude                 hiding ( EQ
 -- Core Language
 --------------------------------------------------------------
 
+----- Extension: Lists inside of lists -----
+-- type List a = [a]
+
+-- data List = SubList List
+--           | IntList [Int]
+--           | FloatList [Float]
+--           | BoolList [Bool]
+--     deriving Show
+--------------------------------------------
+
 -- A literal value that can be stored in a variable or passed as a parameter.
-data VarVal = Int Integer
+data VarVal = Int Int
             | Float Float
             | Boolean Bool
-            | IntList [Integer]
+            | IntList [Int]
             | FloatList [Float]
             | BoolList [Bool]
     deriving Show
@@ -77,9 +88,10 @@ data Expr = Operation Operation Expr Expr -- Applies the operation to the 2 expr
 data Cmd = Def String FuncData -- Define a function with a name specified by String, with parameters FuncData ex: `a = 5`.
          | Set String Expr -- Assign the VarVal specified by Expr to the variable named by the String ex: `a = 5`.
          | Index String Expr Expr -- Assign a value to a specific element in a list ex: `myList[3] = 4`.
+         | Delete String Expr -- Deletes the element in list variable (w/ name `String`) at index (`Expr`).
          | If Expr Prog
          | While Expr Prog
-         | Macro [Cmd] -- [Julian's proposal; feel free to discuss] Not accessible via the language syntax, but necessary for advanced syntactic sugar.
+         | ForEach String Expr Prog -- Iterates and performs block of code for each item in a list. Ex: For <var> in <list> { <prog> }
          | Return Expr
   deriving Show
 
@@ -104,15 +116,19 @@ data TypeState = ProgTypeState VarTypeAssociation FuncAssociation Prog
 or :: Expr -> Expr -> Expr
 or x y = Not (Operation And (Not x) (Not y)) -- Demorgan's law babyyy :)
 
--- TODO: For each
 
 --------------------------------------------------------------
 -- Built-in Library
 --------------------------------------------------------------
 
--- TODO: Append ?
+-- TODO: We need to compile the prelude and give the state after the prelude runs to each compiled program.
 
--- TODO: Prepend ?
+prelude :: Prog
+prelude = []
+
+-- TODO: Append
+-- TODO: Prepend
+-- TODO: Range
 
 --------------------------------------------------------------
 -- Evaluation
@@ -200,12 +216,12 @@ operationEval Equal x y = equal x y
 operationEval Less  x y = less x y
 operationEval And   x y = and x y
 
-element :: [a] -> Integer -> Maybe a
+element :: [a] -> Int -> Maybe a
 element []            _ = Nothing -- Out of range
 element (elem : list) 0 = Just elem -- Desired
 element (elem : list) i = element list (i - 1)
 
-getElement :: VarVal -> Integer -> MaybeError VarVal
+getElement :: VarVal -> Int -> MaybeError VarVal
 getElement (FloatList list) index = case element list index of
   Just value -> Result (Float value)
   Nothing    -> Error "Index Error: Index out of range"
@@ -256,7 +272,7 @@ exprEval (ProgState vars funcs p) (Function name args) =
     _ -> Error ("Function '" ++ name ++ "' undefined")
 
 -- Params: List, Index, Value, New List
-insert :: [a] -> Integer -> a -> Maybe [a]
+insert :: [a] -> Int -> a -> Maybe [a]
 insert list          0 v = Just (v : list)
 insert (head : list) i v = case insert list (i - 1) v of
   Just newList -> Just (head : newList)
@@ -264,7 +280,7 @@ insert (head : list) i v = case insert list (i - 1) v of
 insert [] _ _ = Nothing -- Out of range
 
 -- Parameters:  List      Index      Value     New List
-insertInList :: VarVal -> Integer -> VarVal -> MaybeError VarVal
+insertInList :: VarVal -> Int -> VarVal -> MaybeError VarVal
 -- Insert a Float into a Float list
 insertInList (FloatList list) index (Float value) =
   case insert list index value of
@@ -281,6 +297,16 @@ insertInList (BoolList list) index (Boolean value) =
     Nothing      -> Error "Index Error: Index out of range"
 -- Type error
 insertInList _ _ _ = Error "Type Error: Mismatch when inserting in list."
+
+-- Maps a vairable name and value pair to a small program
+forEachProgram :: String -> [VarVal] -> Prog -> Prog
+forEachProgram _ [] _ = []
+forEachProgram name (element : list) block =
+  (blockInForEach name element block) ++ (forEachProgram name list block)
+
+blockInForEach :: String -> VarVal -> Prog -> Prog
+blockInForEach name element innerBlock =
+  [Set name (Literal element)] ++ innerBlock
 
 -- Evaluate currently executing command. Loops and Conditionals are handled by injecting commands onto the current state's program.
 cmd :: State -> Cmd -> MaybeError (State, Maybe VarVal)
@@ -319,6 +345,28 @@ cmd (ProgState vars funcs p) (While condition block) =
     Result (Boolean False) -> Result (ProgState vars funcs p, Nothing)
     Error  s               -> Error s
     _                      -> Error "Non boolean in while loop condition"
+cmd (ProgState vars funcs p) (ForEach iterName iterOver block) =
+  case exprEval (ProgState vars funcs p) iterOver of
+    Result (FloatList list) -> Result
+      ( ProgState vars
+                  funcs
+                  ((forEachProgram iterName (map Float list) block) ++ p)
+      , Nothing
+      )
+    Result (IntList list) -> Result
+      ( ProgState vars
+                  funcs
+                  ((forEachProgram iterName (map Int list) block) ++ p)
+      , Nothing
+      )
+    Result (BoolList list) -> Result
+      ( ProgState vars
+                  funcs
+                  ((forEachProgram iterName (map Boolean list) block) ++ p)
+      , Nothing
+      )
+    Error s -> Error s
+    _       -> Error "For-each loop may only be applied to a list."
 cmd (ProgState vars funcs p) (Return expr1) =
   case exprEval (ProgState vars funcs p) expr1 of
     Result x -> Result (ProgState vars funcs p, Just x)
@@ -332,11 +380,9 @@ prog (ProgState vars funcs (x : xs)) = case cmd (ProgState vars funcs xs) x of
   Result (_       , Just x ) -> Result x
   Error  s                   -> Error s
 
--- Runs a program by initializing an empty state and processing the program
+-- Runs a program *WITHOUT* type checking by initializing an empty state and processing the program.
 run :: Prog -> MaybeError VarVal
-run p = prog (ProgState Map.empty Map.empty p)
-https://www.fasebj.org/doi/abs/10.1096/fasebj.2019.33.1_supplement.204.3
-
+run p = prog (ProgState Map.empty Map.empty (prelude ++ p)) -- Adds prelude functions.
 
 -- -- Builds a new state object for use in a function call.  Takes arguments in this order: current program state, list of expr to fill args, list of arg names, empty var map (to be built), function definitions (to be passed), program block to execute
 -- buildFuncTypeState
@@ -492,7 +538,7 @@ checkVarVal :: Expr -> Bool
 checkVarVal (Literal _) = True
 checkVarVal _           = False
 
-compile :: Prog -> CompVal
+-- compile :: Prog -> CompVal
 
 -- Used to evaluate literal values to match with other booleans
 {-
