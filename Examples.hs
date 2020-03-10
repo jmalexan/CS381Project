@@ -68,16 +68,15 @@ factorial =
   , Return (Function "factorial" [Literal (Int 6)]) -- Modify this value to change test different inputs
   ]
 
+-- An implementation of quicksort in Barely Functional-C. Run with `run quicksort`
 quickSort :: Prog
 quickSort =
   [ Def
     "quickSort"
     (FuncDataCon
       ["list"]
-      [ -- Check base cases
-        Set "result" (Literal (IntList []))
-      , If (Operation Equal (Length "list") (Literal (Int 0)))
-           [Set "result" (Variable "list")]
+      [ If (Operation Equal (Length "list") (Literal (Int 0))) -- Check base cases
+           [Return (Variable "list")]
       , If
         (greater (Length "list") (Literal (Int 0)))
         [ Set "pivot" (Operation Div (Length "list") (Literal (Int 2))) -- Pick pivot as middle (uses integer division so pivot is int)
@@ -93,22 +92,19 @@ quickSort =
             (greater (Variable "x") (Element "list" (Variable "pivot"))) -- x >= input[pivot]
             [Set "right" (Function "append" [Variable "right", Variable "x"])]
           ]
-        , Set "sortedLeft" (Function "quickSort" [Variable "left"])
+        , Set "sortedLeft"  (Function "quickSort" [Variable "left"])
         , Set "sortedRight" (Function "quickSort" [Variable "right"])
-        , Set "result" (Variable "sortedLeft")
-        , Set "result" (Function "append" [Variable "result", (Element "list" (Variable "pivot"))])
-        , Set "result" (Concat (Variable "result") (Variable "sortedRight"))
+        , Return
+          (Concat
+            (Function
+              "append"
+              [Variable "sortedLeft", Element "list" (Variable "pivot")]
+            )
+            (Variable "sortedRight")
+          ) -- append(sortedLeft, pivot]) ++ sortedRight
         ]
-      , Return (Variable "result")
       ]
     )
-  , Return (Function "quickSort" [Literal (IntList [4, 2, 6, 1])]) -- Modify this value to change test different inputs
-  ]
-
-returnTest :: Prog
-returnTest =
-  [ Def
-    "returnTest"
-    (FuncDataCon [] [Return (Literal (Int 5)), Set "x " (Literal (Int 5))])
-  , Set "_" (Function "returnTest" [])
+  , Return
+    (Function "quickSort" [Literal (IntList [9, 5, 4, 8, 3, 7, 2, 6, 1])]) -- Modify these values to change test different inputs
   ]

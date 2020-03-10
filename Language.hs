@@ -137,8 +137,6 @@ assign list index value =
 -- Built-in Library
 --------------------------------------------------------------
 
--- TODO: We need to compile the prelude and give the state after the prelude runs to each compiled program.
-
 prelude :: Prog
 prelude =
   [ Def -- Append: Takes list and element and returns list with element appended. (This will break when typeSystem is implemented)
@@ -165,8 +163,6 @@ prelude =
       ]
     )
   ]
-
--- TODO: Range
 
 --------------------------------------------------------------
 -- Evaluation
