@@ -81,6 +81,7 @@ data Expr = Operation Operation Expr Expr -- Applies the operation to the 2 expr
           | Literal VarVal -- Literal value.
           | Element String Expr  -- Fetch the value of a specific element in a list ex: `a = b + myList[3]`
           | Length String -- Get the length of a list
+          | Concat Expr Expr -- Concatenate two lists
           | Function String [Expr] -- Calls a function.
   deriving Show
 
@@ -114,7 +115,17 @@ data TypeState = ProgTypeState VarTypeAssociation FuncAssociation Prog
 --------------------------------------------------------------
 
 or :: Expr -> Expr -> Expr
-or x y = Not (Operation And (Not x) (Not y)) -- Demorgan's law babyyy :)
+or left right = Not (Operation And (Not left) (Not right)) -- Demorgan's law babyyy :)
+
+lessOrEqual :: Expr -> Expr -> Expr
+lessOrEqual left right =
+  or (Operation Less (left) (right)) (Operation Equal (left) (right))
+
+greater :: Expr -> Expr -> Expr
+greater left right = Not (lessOrEqual left right)
+
+greaterOrEqual :: Expr -> Expr -> Expr
+greaterOrEqual left right = Not (Operation Less left right)
 
 -- i.e.: list[index] = value
 assign :: String -> Expr -> Expr -> Cmd
@@ -147,7 +158,7 @@ prelude =
       , Set "list"  (Literal (IntList []))
       , While
         (Operation Less (Variable "index") (Variable "count"))
-        [ Set "list" (Function "append" [Variable "list", Variable "index"]) -- Append
+        [ Set "list"  (Function "append" [Variable "list", Variable "index"]) -- Append
         , Set "index" (Operation Add (Variable "index") (Literal (Int 1))) -- Increment index
         ]
       , Return (Variable "list")
@@ -226,7 +237,8 @@ less :: VarVal -> VarVal -> MaybeError VarVal
 less (Int   x) (Int   y) = Result (Boolean (x < y))
 less (Float x) (Float y) = Result (Boolean (x < y))
 less _ _ =
-  Error "Type Error: `mul` is not defined for mismatched or non-numeric types."
+  Error
+    "Type Error: `less than` is not defined for mismatched or non-numeric types."
 
 -- Perform the and operation.
 and :: VarVal -> VarVal -> MaybeError VarVal
@@ -266,6 +278,16 @@ getLength (IntList   list) = Result (Int (length list))
 getLength (BoolList  list) = Result (Int (length list))
 getLength _ = Error "Type Error: Length only permitted for lists."
 
+concatenateLists :: VarVal -> VarVal -> MaybeError VarVal
+concatenateLists (IntList first) (IntList second) =
+  Result (IntList (first ++ second))
+concatenateLists (FloatList first) (FloatList second) =
+  Result (FloatList (first ++ second))
+concatenateLists (BoolList first) (BoolList second) =
+  Result (BoolList (first ++ second))
+concatenateLists _ _ =
+  Error "Type Error: Concatenation is only allowed between the same list types."
+
 -- Evaluates an expression to produce a VarVal or, if something is wrong, an Error.
 exprEval :: State -> Expr -> MaybeError VarVal
 exprEval oldstate (Operation oper expr1 expr2) =
@@ -298,6 +320,17 @@ exprEval (ProgState vars funcs p) (Length name) =
       Result value -> Result value
       Error  s     -> Error s
     (Error s) -> Error s
+exprEval (ProgState vars funcs p) (Concat left right) =
+  case
+      ( exprEval (ProgState vars funcs p) left
+      , exprEval (ProgState vars funcs p) right
+      )
+    of -- Look up list
+      (Result list1, Result list2) -> case concatenateLists list1 list2 of
+        Result newList -> Result newList
+        Error  s       -> Error s
+      (Error s, _      ) -> Error s
+      (_      , Error s) -> Error s
 exprEval (ProgState vars funcs p) (Function name args) =
   case Map.lookup name funcs of
     Just func ->
@@ -368,12 +401,12 @@ deleteFromList (BoolList list) index = case delete list index of
 forEachProgram :: String -> [VarVal] -> Prog -> Prog
 forEachProgram _ [] _ = []
 forEachProgram name (element : list) block =
-  (blockInForEach name element block) ++ (forEachProgram name list block)
+  blockInForEach name element block ++ forEachProgram name list block
 
  -- Utility helper for forEachProgram that produces a program: assign element to var (String), block of code
 blockInForEach :: String -> VarVal -> Prog -> Prog
 blockInForEach name element innerBlock =
-  [Set name (Literal element)] ++ innerBlock
+  Set name (Literal element) : innerBlock
 
 -- Evaluate currently executing command. Loops and Conditionals are handled by injecting commands onto the current state's program.
 cmd :: State -> Cmd -> MaybeError (State, Maybe VarVal)

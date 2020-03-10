@@ -44,24 +44,6 @@ badProg =
   , Return (Variable "x")
   ]
 
--- Shows off the for each functionality
-sumListProg :: Prog
-sumListProg =
-  [ Set "x" (Literal (IntList [1, 2, 3])) -- Modify this lest to test different inputs.
-  , Def
-    "sumList"
-    (FuncDataCon
-      ["inputList"]
-      [ Set "sum" (Literal (Int 0))
-      , ForEach "x"
-                (Variable "inputList")
-                [Set "sum" (Operation Add (Variable "sum") (Variable "x"))]
-      , Return (Variable "sum")
-      ]
-    )
-  , Return (Function "sumList" [Variable "x"])
-  ]
-
 -- An example program to show off the ability of lists by calculating factorial.
 factorial :: Prog
 factorial =
@@ -83,5 +65,48 @@ factorial =
       , Return (Variable "factorial")
       ]
     )
-  , Return (Function "factorial" [Literal (Int 6)])
+  , Return (Function "factorial" [Literal (Int 6)]) -- Modify this value to change test different inputs
+  ]
+
+quickSort :: Prog
+quickSort =
+  [ Def
+    "quickSort"
+    (FuncDataCon
+      ["list"]
+      [ -- Check base cases
+        Set "result" (Literal (IntList []))
+      , If (Operation Equal (Length "list") (Literal (Int 0)))
+           [Set "result" (Variable "list")]
+      , If
+        (greater (Length "list") (Literal (Int 0)))
+        [ Set "pivot" (Operation Div (Length "list") (Literal (Int 2))) -- Pick pivot as middle (uses integer division so pivot is int)
+        , Set "left"  (Literal (IntList []))
+        , Set "right" (Literal (IntList []))
+        , ForEach
+          "x"
+          (Variable "list")
+          [ If
+            (Operation Less (Variable "x") (Element "list" (Variable "pivot"))) -- x < input[pivot]
+            [Set "left" (Function "append" [Variable "left", Variable "x"])]
+          , If
+            (greaterOrEqual (Variable "x") (Element "list" (Variable "pivot"))) -- x >= input[pivot]
+            [Set "right" (Function "append" [Variable "right", Variable "x"])]
+          ]
+        , Set "sortedLeft" (Function "quickSort" [Variable "left"])
+        , Set "sortedRight" (Function "quickSort" [Variable "right"])
+        , Set "result" (Concat (Variable "sortedLeft") (Variable "sortedRight"))
+        ]
+      , Return (Variable "result")
+      ]
+    )
+  , Return (Function "quickSort" [Literal (IntList [4, 2, 6, 1])]) -- Modify this value to change test different inputs
+  ]
+
+returnTest :: Prog
+returnTest =
+  [ Def
+    "returnTest"
+    (FuncDataCon [] [Return (Literal (Int 5)), Set "x " (Literal (Int 5))])
+  , Set "_" (Function "returnTest" [])
   ]
