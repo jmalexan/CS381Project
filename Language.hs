@@ -7,6 +7,7 @@ module Language where
 
 import qualified Data.Map.Strict               as Map
 import           Data.Maybe
+import		 Data.Typeable
 import           Prelude                 hiding ( EQ
                                                 , LT
                                                 , List
@@ -14,6 +15,7 @@ import           Prelude                 hiding ( EQ
                                                 , or
                                                 , subtract
                                                 )
+
 
 --------------------------------------------------------------
 -- Core Language
@@ -650,7 +652,7 @@ checkVarVal _           = False
 -- compile :: Prog -> CompVal
 
 -- Used to evaluate literal values to match with other booleans
-{-
+
 compileVarVal :: VarVal -> CompVal
 compileVarVal _ = Loaded
 
@@ -664,7 +666,55 @@ compileOperation :: Operation -> CompVal
 
 compileExpr :: Expr -> CompVal
 compileExpr (Operation opr exprone exprtwo) =
-compileExpr (Not expr) =
+	case of opr
+		Add -> case of (typeOf exprone == typeOf exprtwo)
+			True -> case of (typeOf exprone)
+				Int x -> Loaded
+				Float x -> Loaded
+				_ -> Datatypeerror
+			_ -> Datatypeerror
+		Sub -> case of (typeOf exprone == typeOf exprtwo)
+			True -> case of (typeOf exprone)
+				Int x -> Loaded
+				Float x -> Loaded
+				_ -> Datatypeerror
+			_ -> Datatypeerror
+		Mul -> case of (typeOf exprone == typeOf exprtwo)
+			True -> case of (typeOf exprone)
+				Int x -> Loaded
+				Float x -> Loaded
+				_ -> Datatypeerror
+			_ -> Datatypeerror
+		Div -> case of (typeOf exprone == typeOf exprtwo)
+			True -> case of (typeOf exprone)
+				Int x -> Loaded
+				Float x -> Loaded
+				_ -> Datatypeerror
+			_ -> Datatypeerror
+		Equal -> case of (typeOf exprone == typeOf exprtwo)
+			True -> case of (typeOf exprone)
+				Int x -> Loaded
+				Float x -> Loaded
+				Boolean x -> Loaded
+				_ -> Datatypeerror
+			_ -> Datatypeerror
+		Less -> case of (typeOf exprone == typeOf exprtwo)
+			True -> case of (typeOf exprone)
+				Int x -> Loaded
+				Float x -> Loaded
+				_ -> Datatypeerror
+			_ -> Datatypeerror
+		And -> case of (typeOf exprone == typeOf exprtwo)
+			True -> case of (typeOf exprone)
+				Boolean x -> Loaded
+				_ -> Datatypeerror
+			_ -> Datatypeerror
+
+compileExpr (Not expr) = 
+	case of (typeOf expr)
+		Boolean x -> Loaded
+		_ 	  -> Datatypeerror
+
 compileExpr (Literal VarVal) = Loaded
 compileExpr (Element str expr) = compileExpr expr
 compileExpr (Length str) = Loaded
@@ -695,4 +745,3 @@ compileCmd (While expr prog) =
 		_    -> Syntaxerror
 compileCmd (Macro cmd) = compileCmd cmd
 compileCmd (Return expr) = compileExpr expr
--}
