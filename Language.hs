@@ -502,10 +502,10 @@ run :: Prog -> MaybeError VarVal
 run p = prog (ProgState Map.empty Map.empty (prelude ++ p)) -- Adds prelude functions
 
 -- Compiler Reinstate - Works on Syntactic Sugar Now
-compile :: Prog -> CompState
+compile :: Prog -> CompileState
 compile p =
 	case (prog (ProgState Map.empty Map.empty (prelude ++ p))) of
-		Error x -> (Syntaxerror,x, findLine (ProgState Map.empty Map.empty (prelude ++ p)) 1)
+		Error x -> (Syntaxerror,x,Line (findLine (ProgState Map.empty Map.empty (prelude ++ p)) 1))
 		_	-> (Loaded,"No Error Message",NoError)
 
 findLine :: State -> Int -> Int
