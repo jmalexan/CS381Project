@@ -111,6 +111,8 @@ type Prog = [Cmd]
 
 type CompileState = (CompVal,String,ErrorLine)
 
+type CompileStatus = [CompileState]
+
 -- A program state includes the variables, functions, and the program itself.
 data State = ProgState VarAssociation FuncAssociation Prog
   deriving Show
@@ -502,19 +504,24 @@ run :: Prog -> MaybeError VarVal
 run p = prog (ProgState Map.empty Map.empty (prelude ++ p)) -- Adds prelude functions
 
 -- Compiler Reinstate - Works on Syntactic Sugar Now
-compile :: Prog -> CompileState
-compile p =
-	case (prog (ProgState Map.empty Map.empty (prelude ++ p))) of
-		Error x -> (Syntaxerror,x,Line (findLine (ProgState Map.empty Map.empty (prelude ++ p)) 1))
-		_	-> (Loaded,"No Error Message",NoError)
 
-findLine :: State -> Int -> Int
-findLine (ProgState _ _ []) _ = -1
+compile :: Prog -> CompileStatus
+compile p = 
+	case (findLine (ProgState Map.empty Map.empty (prelude ++ p)) (-1)) of
+	[] -> [(Loaded, "Compiled, use 'run' to Run Program", NoError)]
+	_  -> concatenator (findLine (ProgState Map.empty Map.empty (prelude ++ p)) (-1))
+
+concatenator :: [(Int, String)] -> CompileStatus
+concatenator [] = []
+concatenator ((c,s):xs) = [(Syntaxerror, s, Line c)] ++ concatenator xs
+
+findLine :: State -> Int -> [(Int,String)]
+findLine (ProgState _ _ []) _ = []
 findLine (ProgState vars funcs (x:xs)) c = 
 	case (cmd (ProgState vars funcs xs) x) of
-		Error _ -> c
+		Error s -> [(c,s)] ++ findLine (ProgState vars funcs xs) (c+1)
 		Result (newstate, Nothing) -> findLine newstate (c+1)
-		Result (_, Just _) -> -1
+		Result (_, Just _) -> []
 
 
 -- -- Builds a new state object for use in a function call.  Takes arguments in this order: current program state, list of expr to fill args, list of arg names, empty var map (to be built), function definitions (to be passed), program block to execute
