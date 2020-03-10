@@ -90,12 +90,14 @@ quickSort =
             (Operation Less (Variable "x") (Element "list" (Variable "pivot"))) -- x < input[pivot]
             [Set "left" (Function "append" [Variable "left", Variable "x"])]
           , If
-            (greaterOrEqual (Variable "x") (Element "list" (Variable "pivot"))) -- x >= input[pivot]
+            (greater (Variable "x") (Element "list" (Variable "pivot"))) -- x >= input[pivot]
             [Set "right" (Function "append" [Variable "right", Variable "x"])]
           ]
         , Set "sortedLeft" (Function "quickSort" [Variable "left"])
         , Set "sortedRight" (Function "quickSort" [Variable "right"])
-        , Set "result" (Concat (Variable "sortedLeft") (Variable "sortedRight"))
+        , Set "result" (Variable "sortedLeft")
+        , Set "result" (Function "append" [Variable "result", (Element "list" (Variable "pivot"))])
+        , Set "result" (Concat (Variable "result") (Variable "sortedRight"))
         ]
       , Return (Variable "result")
       ]
