@@ -7,8 +7,8 @@ module Language where
 
 import qualified Data.Map.Strict               as Map
 import           Data.Maybe
-import		 Data.Typeable
-import		 System.IO
+import		       Data.Typeable
+import		       System.IO
 import           Prelude                 hiding ( EQ
                                                 , LT
                                                 , List
@@ -58,7 +58,7 @@ data CompVal = Loaded | Syntaxerror | Datatypeerror
 type VarAssociation = Map.Map String VarVal
 
 -- The data associated with a function.
-data FuncData = FuncDataCon [String] Prog
+data FuncData = FuncDataCon [String] [Type] Prog
   deriving Show
 
 -- The types associated with a function.
@@ -155,7 +155,7 @@ prelude =
   [ Def -- Append: Takes list and element and returns list with element appended. (This will break when typeSystem is implemented)
     "append"
     (FuncDataCon
-      ["list", "element"]
+      ["list", "element"] [TIntList, TInt]
       [ Set "index" (Length "list") -- Get length of list
       , Insert "list" (Variable "index") (Variable "element")
       , Return (Variable "list")
@@ -164,7 +164,7 @@ prelude =
   , Def -- Range: Takes and int and generates Int list [0...input].
     "range"
     (FuncDataCon
-      ["count"]
+      ["count"] [TInt]
       [ Set "index" (Literal (Int 0)) -- Get length of list
       , Set "list"  (Literal (IntList []))
       , While
@@ -200,11 +200,11 @@ buildFuncState oldstate (x : xs) (s : ss) vars funcs p =
 
 -- Utility function to get a prog block out of the function map data
 getFuncProg :: FuncData -> Prog
-getFuncProg (FuncDataCon _ prog) = prog
+getFuncProg (FuncDataCon _ _ prog) = prog
 
 -- Utility function to get an arg name list out of the function map data
 getFuncArgs :: FuncData -> [String]
-getFuncArgs (FuncDataCon args _) = args
+getFuncArgs (FuncDataCon args types _) = args
 
 -- Perform the add operation.
 add :: VarVal -> VarVal -> MaybeError VarVal
@@ -310,7 +310,7 @@ exprEval oldstate (Not expr) = case exprEval oldstate expr of
   _                      -> Error "`not` is only defined for Boolean values."
 exprEval (ProgState vars _ _) (Variable name) = case Map.lookup name vars of
   Just val -> Result val
-  _        -> Error ("Variable '" ++ name ++ "'reference before assignment.")
+  _        -> Error ("Variable '" ++ name ++ "' reference before assignment.")
 exprEval _ (Literal val) = Result val
 exprEval (ProgState vars funcs p) (Element name index) =
   case
@@ -521,8 +521,8 @@ concatenator ((c,s,f):xs) = [(Syntaxerror, s, Line c, f)] ++ concatenator xs
 
 findLine :: State -> Int -> String -> [(Int,String,String)]
 findLine (ProgState _ _ []) _ _ = []
-findLine (ProgState vars funcs ((Def str (FuncDataCon v f)):xs)) c t = 
-	case (cmd (ProgState vars funcs xs) (Def str (FuncDataCon v f))) of
+findLine (ProgState vars funcs ((Def str (FuncDataCon v l f)):xs)) c t = 
+	case (cmd (ProgState vars funcs xs) (Def str (FuncDataCon v l f))) of
 		Error s -> [(c,s,t)] ++ findLine (ProgState vars funcs xs) (c+1) t
 		Result (newstate, Nothing) -> (findLine (ProgState Map.empty Map.empty f) 1 str) ++ (findLine newstate (c+1) t)
 		Result (_,Just _) -> []
@@ -531,6 +531,26 @@ findLine (ProgState vars funcs (x:xs)) c t =
 		Error s -> [(c,s,t)] ++ findLine (ProgState vars funcs xs) (c+1) t
 		Result (newstate, Nothing) -> findLine newstate (c+1) t
 		Result (_, Just _) -> []
+
+-- checkParams :: [String] -> String -> Bool
+-- checkParams [] = False
+-- checkParams (x:xs) str = (isInfixOf ("'" ++ x ++ "'") str) || checkParams xs str
+
+-- funcLine :: State -> [String] -> Int -> String -> [(Int,String,String)]
+-- funcLine (ProgState _ _ []) _ _ = []
+-- funcLine (ProgState vars funcs ((Def str (FuncDataCon v f)):xs)) (p:ps) c t = 
+-- 	case (cmd (ProgState vars funcs xs) (Def str (FuncDataCon v f))) of
+-- 		Error s -> [(c,s,t)] ++ funcLine (ProgState vars funcs xs) (p:ps) (c+1) t
+-- 		Result (newstate, Nothing) -> (funcLine (ProgState Map.empty Map.empty f) v 1 str) ++ (funcLine newstate (c+1) (p:ps) t)
+-- 		Result (_,Just _) -> []
+-- funcLine (ProgState vars funcs (x:xs)) (p:ps) c t = 
+-- 	case (cmd (ProgState vars funcs xs) x) of
+-- 		Error s -> case (checkParams (p:ps) s) of
+--         True  -> funcLine newstate (p:ps) (c+1) t
+--         False -> [(c,s,t)] ++ funcLine (ProgState vars funcs xs) (p:ps) (c+1) t
+-- 		Result (newstate, Nothing) -> funcLine newstate (p:ps) (c+1) t
+-- 		Result (_, Just _) -> []
+
 
 pretty :: CompileStatus -> String
 pretty [] = "\n\n"
