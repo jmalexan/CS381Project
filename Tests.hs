@@ -105,3 +105,96 @@ testListAppend = run
 --
 testRange :: MaybeError VarVal
 testRange = run [Return (Function "range" [Literal (Int 4)])]
+
+
+-- | Testing the string assignment
+--
+--   >>> testStringAssignment
+--   Result (String "hello")
+--
+testStringAssignment :: MaybeError VarVal
+testStringAssignment = run
+    [ Set "myString"    (Literal (String "hello"))
+    , Set "otherString" (Variable "myString")
+    , Return (Variable "myString")
+    ]
+
+-- | Testing the string insertion
+--
+--   >>> testStringInsertion
+--   Result (String "Hello, world")
+--
+testStringInsertion :: MaybeError VarVal
+testStringInsertion = run
+    [ Set "myString" (Literal (String "ello, world"))
+    , Insert "myString" (Literal (Int 0)) (Literal (Character 'H'))
+    , Return (Variable "myString")
+    ]
+
+-- | Testing the string accessing
+--
+--   >>> testStringAccess
+--   Result (Character 'e')
+--
+testStringAccess :: MaybeError VarVal
+testStringAccess = run
+    [ Set "myString" (Literal (String "Hello, world"))
+    , Return (Element "myString" (Literal (Int 1)))
+    ]
+
+-- | Testing the string deletion
+--
+--   >>> testStringDeletion
+--   Result (String "Hello, world")
+--
+testStringDeletion :: MaybeError VarVal
+testStringDeletion = run
+    [ Set "myString" (Literal (String "Hello, woorld"))
+    , Delete "myString" (Literal (Int 8))
+    , Return (Variable "myString")
+    ]
+
+-- | Testing the list index assignment
+--
+--   >>> testStringIndexing
+--   Result (String "Hello, world")
+--
+testStringIndexing :: MaybeError VarVal
+testStringIndexing = run
+    [ Set "myString" (Literal (String "Hello, w0rld"))
+    , assign "myString" (Literal (Int 8)) (Literal (Character 'o'))
+    , Return (Variable "myString")
+    ]
+
+-- | Testing list length
+--
+--   >>> testStringLength
+--   Result (Int 12)
+--
+testStringLength :: MaybeError VarVal
+testStringLength = run
+    [ Set "myString" (Literal (String "Hello, world"))
+    , Return (Length "myString")
+    ]
+
+-- | Testing built-in append
+--
+--   >>> testStringLength
+--   Result (String "Hello, world!")
+--
+testStringAppend :: MaybeError VarVal
+testStringAppend = run
+    [ Set "myString" (Literal (String "Hello, world"))
+    , Return (Function "append" [Variable "myString", Literal (Character '!')])
+    ]
+
+-- | Testing string concatenation
+--
+--   >>> testStringConcat
+--   Result (String "You're a wizard, Harry")
+--
+testStringConcat :: MaybeError VarVal
+testStringConcat = run
+    [ Set "myString" (Literal (String "You're a wizard, "))
+    , Return (Concat (Variable "myString") (Literal (String "Harry")))
+    ]

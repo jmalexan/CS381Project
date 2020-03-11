@@ -7,8 +7,8 @@ module Language where
 
 import qualified Data.Map.Strict               as Map
 import           Data.Maybe
-import		       Data.Typeable
-import		       System.IO
+import           Data.Typeable
+import           System.IO
 import           Prelude                 hiding ( EQ
                                                 , LT
                                                 , List
@@ -36,9 +36,11 @@ import           Prelude                 hiding ( EQ
 data VarVal = Int Int
             | Float Float
             | Boolean Bool
+            | Character Char
             | IntList [Int]
             | FloatList [Float]
             | BoolList [Bool]
+            | String [Char]
     deriving Show
 
 -- ??
@@ -104,7 +106,7 @@ data MaybeError x = Result x
   deriving Show
 
 data ErrorLine = Line Int
-		| NoError
+                | NoError
   deriving Show
 
 -- A program is composed a list of commands.
@@ -112,7 +114,7 @@ type Prog = [Cmd]
 
 type FunctionName = String
 
-type CompileState = (CompVal,String,ErrorLine,FunctionName)
+type CompileState = (CompVal, String, ErrorLine, FunctionName)
 
 type CompileStatus = [CompileState]
 
@@ -155,7 +157,8 @@ prelude =
   [ Def -- Append: Takes list and element and returns list with element appended. (This will break when typeSystem is implemented)
     "append"
     (FuncDataCon
-      ["list", "element"] [TIntList, TInt]
+      ["list", "element"]
+      [TIntList, TInt]
       [ Set "index" (Length "list") -- Get length of list
       , Insert "list" (Variable "index") (Variable "element")
       , Return (Variable "list")
@@ -164,7 +167,8 @@ prelude =
   , Def -- Range: Takes and int and generates Int list [0...input].
     "range"
     (FuncDataCon
-      ["count"] [TInt]
+      ["count"]
+      [TInt]
       [ Set "index" (Literal (Int 0)) -- Get length of list
       , Set "list"  (Literal (IntList []))
       , While
@@ -279,12 +283,16 @@ getElement (IntList list) index = case element list index of
 getElement (BoolList list) index = case element list index of
   Just value -> Result (Boolean value)
   Nothing    -> Error "Index Error: Index out of range."
+getElement (String list) index = case element list index of
+  Just value -> Result (Character value)
+  Nothing    -> Error "Index Error: Index out of range."
 getElement _ _ = Error "Type Error: List access only permitted for lists."
 
 getLength :: VarVal -> MaybeError VarVal
 getLength (FloatList list) = Result (Int (length list))
 getLength (IntList   list) = Result (Int (length list))
 getLength (BoolList  list) = Result (Int (length list))
+getLength (String    list) = Result (Int (length list))
 getLength _ = Error "Type Error: Length only permitted for lists."
 
 concatenateLists :: VarVal -> VarVal -> MaybeError VarVal
@@ -294,6 +302,8 @@ concatenateLists (FloatList first) (FloatList second) =
   Result (FloatList (first ++ second))
 concatenateLists (BoolList first) (BoolList second) =
   Result (BoolList (first ++ second))
+concatenateLists (String first) (String second) =
+  Result (String (first ++ second))
 concatenateLists _ _ =
   Error "Type Error: Concatenation is only allowed between the same list types."
 
@@ -379,6 +389,10 @@ insertInList (BoolList list) index (Boolean value) =
   case insert list index value of
     Just newList -> Result (BoolList newList)
     Nothing      -> Error "Index Error: Index out of range"
+insertInList (String list) index (Character value) =
+  case insert list index value of
+    Just newList -> Result (String newList)
+    Nothing      -> Error "Index Error: Index out of range"
 -- Type error
 insertInList _ _ _ = Error "Type Error: Mismatch when inserting in list."
 
@@ -404,6 +418,10 @@ deleteFromList (IntList list) index = case delete list index of
 deleteFromList (BoolList list) index = case delete list index of
   Just newList -> Result (BoolList newList)
   Nothing      -> Error "Index Error: Index out of range"
+-- Delete character from string
+deleteFromList (String list) index = case delete list index of
+  Just newList -> Result (String newList)
+  Nothing      -> Error "Index Error: Index out of range"
 
 -- Maps a variable name, list of varVals, and block of code and copies the block for
 -- each item, setting the name to hold each element in each block.
@@ -423,8 +441,7 @@ cmd (ProgState vars funcs p) (Def name funcdata) =
   Result (ProgState vars (Map.insert name funcdata funcs) p, Nothing)
 cmd (ProgState vars funcs p) (Set name val) =
   case exprEval (ProgState vars funcs p) val of
-    Result v ->
-	Result (ProgState (Map.insert name v vars) funcs p, Nothing)
+    Result v -> Result (ProgState (Map.insert name v vars) funcs p, Nothing)
     Error  s -> Error s
 cmd (ProgState vars funcs p) (Insert name index val) =
   case
@@ -473,19 +490,23 @@ cmd (ProgState vars funcs p) (ForEach iterName iterOver block) =
     Result (FloatList list) -> Result
       ( ProgState vars
                   funcs
-                  ((forEachProgram iterName (map Float list) block) ++ p)
+                  (forEachProgram iterName (map Float list) block ++ p)
       , Nothing
       )
     Result (IntList list) -> Result
-      ( ProgState vars
-                  funcs
-                  ((forEachProgram iterName (map Int list) block) ++ p)
+      ( ProgState vars funcs (forEachProgram iterName (map Int list) block ++ p)
       , Nothing
       )
     Result (BoolList list) -> Result
       ( ProgState vars
                   funcs
-                  ((forEachProgram iterName (map Boolean list) block) ++ p)
+                  (forEachProgram iterName (map Boolean list) block ++ p)
+      , Nothing
+      )
+    Result (String list) -> Result
+      ( ProgState vars
+                  funcs
+                  (forEachProgram iterName (map Character list) block ++ p)
       , Nothing
       )
     Error s -> Error s
@@ -510,46 +531,88 @@ run p = prog (ProgState Map.empty Map.empty (prelude ++ p)) -- Adds prelude func
 -- Compiler Reinstate - Works on Syntactic Sugar Now
 
 compile :: Prog -> String
-compile p = 
-	case (findLine (ProgState Map.empty Map.empty (prelude ++ p)) (-1) ("Main")) of
-	[] -> pretty([(Loaded, "Use the function run to start the program", NoError, "Main")])
-	_  -> pretty(concatenator (findLine (ProgState Map.empty Map.empty (prelude ++ p)) (-1) ("Main")))
+compile p =
+  case
+      (findLine (ProgState Map.empty Map.empty (prelude ++ p)) (-1) ("Main"))
+    of
+      [] -> pretty
+        ([ ( Loaded
+           , "Use the function run to start the program"
+           , NoError
+           , "Main"
+           )
+         ]
+        )
+      _ -> pretty
+        (concatenator
+          (findLine (ProgState Map.empty Map.empty (prelude ++ p)) (-1) ("Main")
+          )
+        )
 
 -- Concatenator - Compiles the error codes into a compile status that we can pretty-fy
 concatenator :: [(Int, String, String)] -> CompileStatus
 concatenator [] = []
-concatenator ((c,s,f):xs) = [(Syntaxerror, s, Line c, f)] ++ concatenator xs
+concatenator ((c, s, f) : xs) =
+  [(Syntaxerror, s, Line c, f)] ++ concatenator xs
 
 -- Use this to itereatively find a line of a program in which the error is located, and what function
-findLine :: State -> Int -> String -> [(Int,String,String)]
+findLine :: State -> Int -> String -> [(Int, String, String)]
 findLine (ProgState _ _ []) _ _ = []
-findLine (ProgState vars funcs ((Def str (FuncDataCon v l f)):xs)) c t = -- Special case pattern - if we define a neew function, prepare to check it
-	case (cmd (ProgState vars funcs xs) (Def str (FuncDataCon v l f))) of
-		Error s -> [(c,s,t)] ++ findLine (ProgState vars funcs xs) (c+1) t
-		Result ((ProgState a b z), Nothing) -> (findLine (newFuncState (ProgState Map.empty b f) v l) 1 str) ++ (findLine (ProgState a b z) (c+1) t)
-		Result (_,Just _) -> []
-findLine (ProgState vars funcs (x:xs)) c t = 
-	case (cmd (ProgState vars funcs xs) x) of
-		Error s -> [(c,s,t)] ++ findLine (ProgState vars funcs xs) (c+1) t
-		Result (newstate, Nothing) -> findLine newstate (c+1) t
-		Result (_, Just _) -> []
+findLine (ProgState vars funcs ((Def str (FuncDataCon v l f)) : xs)) c t = -- Special case pattern - if we define a neew function, prepare to check it
+  case (cmd (ProgState vars funcs xs) (Def str (FuncDataCon v l f))) of
+    Error s -> [(c, s, t)] ++ findLine (ProgState vars funcs xs) (c + 1) t
+    Result ((ProgState a b z), Nothing) ->
+      (findLine (newFuncState (ProgState Map.empty b f) v l) 1 str)
+        ++ (findLine (ProgState a b z) (c + 1) t)
+    Result (_, Just _) -> []
+findLine (ProgState vars funcs (x : xs)) c t =
+  case (cmd (ProgState vars funcs xs) x) of
+    Error s -> [(c, s, t)] ++ findLine (ProgState vars funcs xs) (c + 1) t
+    Result (newstate, Nothing) -> findLine newstate (c + 1) t
+    Result (_, Just _) -> []
 
 -- Use this to build a working state for functions to be checked for errors based on type
 newFuncState :: State -> [String] -> [Type] -> State
-newFuncState curState [] [] = curState
-newFuncState (ProgState types funcs prog) (s:ss) (t:ts) = case t of
-  TInt      -> newFuncState (ProgState (Map.insert s (Int 5) types) funcs prog) ss ts
-  TFlt      -> newFuncState (ProgState (Map.insert s (Float 5.5) types) funcs prog) ss ts
-  TBool     -> newFuncState (ProgState (Map.insert s (Boolean True) types) funcs prog) ss ts
-  TIntList  -> newFuncState (ProgState (Map.insert s (IntList [1,2,3,4,5]) types) funcs prog) ss ts
-  TFltList  -> newFuncState (ProgState (Map.insert s (FloatList [1.5,2.5,3.5,4.5,5.5]) types) funcs prog) ss ts
-  TBoolList -> newFuncState (ProgState (Map.insert s (BoolList [True, False, True]) types) funcs prog) ss ts
+newFuncState curState                     []       []       = curState
+newFuncState (ProgState types funcs prog) (s : ss) (t : ts) = case t of
+  TInt ->
+    newFuncState (ProgState (Map.insert s (Int 5) types) funcs prog) ss ts
+  TFlt ->
+    newFuncState (ProgState (Map.insert s (Float 5.5) types) funcs prog) ss ts
+  TBool -> newFuncState
+    (ProgState (Map.insert s (Boolean True) types) funcs prog)
+    ss
+    ts
+  TIntList -> newFuncState
+    (ProgState (Map.insert s (IntList [1, 2, 3, 4, 5]) types) funcs prog)
+    ss
+    ts
+  TFltList -> newFuncState
+    (ProgState (Map.insert s (FloatList [1.5, 2.5, 3.5, 4.5, 5.5]) types)
+               funcs
+               prog
+    )
+    ss
+    ts
+  TBoolList -> newFuncState
+    (ProgState (Map.insert s (BoolList [True, False, True]) types) funcs prog)
+    ss
+    ts
 
 -- Make it look nice and like a real readable compiler!
 pretty :: CompileStatus -> String
 pretty [] = "\n\n"
-pretty ((Loaded, s, _, f):xs) = "Program Loaded\n" ++ s ++ "\n" ++  f ++ " Function\n\n"
-pretty ((_, s, (Line i), f):xs) = "Error: " ++ s ++ "\nFound on line " ++ (show i) ++ " of Function: " ++ f ++ "\n\n" ++ pretty xs
+pretty ((Loaded, s, _, f) : xs) =
+  "Program Loaded\n" ++ s ++ "\n" ++ f ++ " Function\n\n"
+pretty ((_, s, (Line i), f) : xs) =
+  "Error: "
+    ++ s
+    ++ "\nFound on line "
+    ++ (show i)
+    ++ " of Function: "
+    ++ f
+    ++ "\n\n"
+    ++ pretty xs
 
 -- -- Builds a new state object for use in a function call.  Takes arguments in this order: current program state, list of expr to fill args, list of arg names, empty var map (to be built), function definitions (to be passed), program block to execute
 -- buildFuncTypeState
@@ -768,7 +831,7 @@ compileExpr (Operation opr exprone exprtwo) =
 				_ -> Datatypeerror
 			_ -> Datatypeerror
 
-compileExpr (Not expr) = 
+compileExpr (Not expr) =
 	case of (typeOf expr)
 		Boolean x -> Loaded
 		_ 	  -> Datatypeerror
