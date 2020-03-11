@@ -47,9 +47,11 @@ data VarVal = Int Int
 data Type = TInt
           | TFlt
           | TBool
+          | TChar
           | TIntList
           | TFltList
           | TBoolList
+          | TString
     deriving Show
 
 -- ??
@@ -87,6 +89,7 @@ data Expr = Operation Operation Expr Expr -- Applies the operation to the 2 expr
           | Element String Expr  -- Fetch the value of a specific element in a list ex: `a = b + myList[3]`
           | Length String -- Get the length of a list
           | Concat Expr Expr -- Concatenate two lists
+          | Cast Expr
           | Function String [Expr] -- Calls a function.
   deriving Show
 
