@@ -512,8 +512,8 @@ run p = prog (ProgState Map.empty Map.empty (prelude ++ p)) -- Adds prelude func
 compile :: Prog -> String
 compile p = 
 	case (findLine (ProgState Map.empty Map.empty (prelude ++ p)) (-1) ("Main")) of
-	[] -> pretty ([(Loaded, "Use the function run to start the program", NoError, "Main")])
-	_  -> pretty (concatenator (findLine (ProgState Map.empty Map.empty (prelude ++ p)) (-1) ("Main")))
+	[] -> pretty([(Loaded, "Use the function run to start the program", NoError, "Main")])
+	_  -> pretty(concatenator (findLine (ProgState Map.empty Map.empty (prelude ++ p)) (-1) ("Main")))
 
 concatenator :: [(Int, String, String)] -> CompileStatus
 concatenator [] = []
@@ -521,22 +521,21 @@ concatenator ((c,s,f):xs) = [(Syntaxerror, s, Line c, f)] ++ concatenator xs
 
 findLine :: State -> Int -> String -> [(Int,String,String)]
 findLine (ProgState _ _ []) _ _ = []
-findLine (ProgState vars funcs (Def str (FuncDataCon v f):xs)) c t = 
-	case (cmd (ProgState vars funcs xs) (Def str (FuncDataCon v f))) of
-		Error s -> [(c,s,t)] ++ findLine (ProgState vars funcs xs) (c+1) t
-		Result (newstate, Nothing) -> (findLine (ProgState Map.empty Map.empty (prelude ++ f)) (-1) str) ++ (findLine newstate (c+1) t)
-		Result (_,Just _) -> []
- 
 findLine (ProgState vars funcs (x:xs)) c t = 
 	case (cmd (ProgState vars funcs xs) x) of
 		Error s -> [(c,s,t)] ++ findLine (ProgState vars funcs xs) (c+1) t
 		Result (newstate, Nothing) -> findLine newstate (c+1) t
 		Result (_, Just _) -> []
+-- findLine (ProgState vars funcs ((Def str (FuncDataCon v f)):xs)) c t = 
+-- 	case (cmd (ProgState vars funcs xs) (Def str (FuncDataCon v f))) of
+-- 		Error s -> [(c,s,t)] ++ findLine (ProgState vars funcs xs) (c+1) t
+-- 		Result (newstate, Nothing) -> (findLine (ProgState Map.empty Map.empty f) 1 str) ++ (findLine newstate (c+1) t)
+-- 		Result (_,Just _) -> []
 
 pretty :: CompileStatus -> String
 pretty [] = "\n\n"
 pretty ((Loaded, s, _, f):xs) = "Program Loaded\n" ++ s ++ "\n" ++  f ++ "Function\n\n"
-pretty ((_, s, (Line i), f):xs) = "Syntax Error: " ++ s ++ "\nFound on line " ++ (show i) ++ "of Function " ++ f ++ "\n\n" ++ pretty xs
+pretty ((_, s, (Line i), f):xs) = "Error: " ++ s ++ "\nFound on line " ++ (show i) ++ " of Function " ++ f ++ "\n\n" ++ pretty xs
 
 -- -- Builds a new state object for use in a function call.  Takes arguments in this order: current program state, list of expr to fill args, list of arg names, empty var map (to be built), function definitions (to be passed), program block to execute
 -- buildFuncTypeState
