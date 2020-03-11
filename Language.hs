@@ -524,7 +524,7 @@ findLine (ProgState _ _ []) _ _ = []
 findLine (ProgState vars funcs ((Def str (FuncDataCon v l f)):xs)) c t = 
 	case (cmd (ProgState vars funcs xs) (Def str (FuncDataCon v l f))) of
 		Error s -> [(c,s,t)] ++ findLine (ProgState vars funcs xs) (c+1) t
-		Result (newstate, Nothing) -> (findLine (ProgState Map.empty Map.empty f) 1 str) ++ (findLine newstate (c+1) t)
+		Result ((ProgState a b z), Nothing) -> (findLine (newFuncState (ProgState Map.empty b f) v l) 1 str) ++ (findLine (ProgState a b z) (c+1) t)
 		Result (_,Just _) -> []
 findLine (ProgState vars funcs (x:xs)) c t = 
 	case (cmd (ProgState vars funcs xs) x) of
@@ -532,24 +532,16 @@ findLine (ProgState vars funcs (x:xs)) c t =
 		Result (newstate, Nothing) -> findLine newstate (c+1) t
 		Result (_, Just _) -> []
 
--- checkParams :: [String] -> String -> Bool
--- checkParams [] = False
--- checkParams (x:xs) str = (isInfixOf ("'" ++ x ++ "'") str) || checkParams xs str
 
--- funcLine :: State -> [String] -> Int -> String -> [(Int,String,String)]
--- funcLine (ProgState _ _ []) _ _ = []
--- funcLine (ProgState vars funcs ((Def str (FuncDataCon v f)):xs)) (p:ps) c t = 
--- 	case (cmd (ProgState vars funcs xs) (Def str (FuncDataCon v f))) of
--- 		Error s -> [(c,s,t)] ++ funcLine (ProgState vars funcs xs) (p:ps) (c+1) t
--- 		Result (newstate, Nothing) -> (funcLine (ProgState Map.empty Map.empty f) v 1 str) ++ (funcLine newstate (c+1) (p:ps) t)
--- 		Result (_,Just _) -> []
--- funcLine (ProgState vars funcs (x:xs)) (p:ps) c t = 
--- 	case (cmd (ProgState vars funcs xs) x) of
--- 		Error s -> case (checkParams (p:ps) s) of
---         True  -> funcLine newstate (p:ps) (c+1) t
---         False -> [(c,s,t)] ++ funcLine (ProgState vars funcs xs) (p:ps) (c+1) t
--- 		Result (newstate, Nothing) -> funcLine newstate (p:ps) (c+1) t
--- 		Result (_, Just _) -> []
+newFuncState :: State -> [String] -> [Type] -> State
+newFuncState curState [] [] = curState
+newFuncState (ProgState types funcs prog) (s:ss) (t:ts) = case t of
+  TInt      -> newFuncState (ProgState (Map.insert s (Int 5) types) funcs prog) ss ts
+  TFlt      -> newFuncState (ProgState (Map.insert s (Float 5.5) types) funcs prog) ss ts
+  TBool     -> newFuncState (ProgState (Map.insert s (Boolean True) types) funcs prog) ss ts
+  TIntList  -> newFuncState (ProgState (Map.insert s (IntList [1,2,3,4,5]) types) funcs prog) ss ts
+  TFltList  -> newFuncState (ProgState (Map.insert s (FloatList [1.5,2.5,3.5,4.5,5.5]) types) funcs prog) ss ts
+  TBoolList -> newFuncState (ProgState (Map.insert s (BoolList [True, False, True]) types) funcs prog) ss ts
 
 
 pretty :: CompileStatus -> String
