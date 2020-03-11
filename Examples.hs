@@ -1,6 +1,7 @@
 module Examples where
 
 import           Language
+import           TypeChecker
 import           Prelude                 hiding ( and
                                                 , or
                                                 , subtract
@@ -13,7 +14,7 @@ goodProg =
   , Def
     "test"
     (FuncDataCon
-      ["asdf"] [TInt]
+      ["asdf"] [TInt] TInt
       [ Set "b" (Operation Add (Literal (Int 777)) (Variable "asdf"))
       , Set "b" (Operation Div (Variable "b") (Literal (Int 2)))
       , Return (Variable "b")
@@ -32,7 +33,7 @@ badProg =
   , Def
     "test"
     (FuncDataCon
-      ["asdf"] [TInt]
+      ["asdf"] [TInt] TInt
       [ Set "b" (Operation Add (Literal (Int 777)) (Variable "asdf"))
       , Set "b" (Operation Div (Variable "b") (Literal (Float 2)))
       , Return (Variable "b")
@@ -50,7 +51,7 @@ factorial =
   [ Def
     "factorial"
     (FuncDataCon
-      ["input"] [TInt]
+      ["input"] [TInt] TInt
       [ Set "factorial" (Literal (Int 1))
       , ForEach
         "x"
@@ -74,7 +75,7 @@ quickSort =
   [ Def
     "quickSort"
     (FuncDataCon
-      ["list"] [TIntList]
+      ["list"] [TIntList] TIntList
       [ If (Operation Equal (Length "list") (Literal (Int 0))) -- Check base cases
            [Return (Variable "list")]
       , If

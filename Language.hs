@@ -48,7 +48,7 @@ data Type = TInt
           | TIntList
           | TFltList
           | TBoolList
-    deriving Show
+    deriving (Show, Prelude.Eq)
 
 -- ??
 data CompVal = Loaded | Syntaxerror | Datatypeerror
@@ -58,20 +58,11 @@ data CompVal = Loaded | Syntaxerror | Datatypeerror
 type VarAssociation = Map.Map String VarVal
 
 -- The data associated with a function.
-data FuncData = FuncDataCon [String] [Type] Prog
+data FuncData = FuncDataCon [String] [Type] Type Prog
   deriving Show
-
--- The types associated with a function.
-data FuncTypeData = FuncTypeDataCon [Type] Type
 
 -- Maps function names to the desired function.
 type FuncAssociation = Map.Map String FuncData
-
--- Maps function names to the type of the function.
-type FuncTypeAssociation = Map.Map String FuncData
-
--- Maps variable names to the type of the variable.
-type VarTypeAssociation = Map.Map String Type
 
 -- Numeric (only works for Floats and Ints) operations
 data Operation = Add | Sub | Mul | Div | Equal | Less | And
@@ -120,9 +111,6 @@ type CompileStatus = [CompileState]
 data State = ProgState VarAssociation FuncAssociation Prog
   deriving Show
 
-data TypeState = ProgTypeState VarTypeAssociation FuncAssociation Prog
-  deriving Show
-
 --------------------------------------------------------------
 -- Syntactic sugar
 --------------------------------------------------------------
@@ -155,7 +143,7 @@ prelude =
   [ Def -- Append: Takes list and element and returns list with element appended. (This will break when typeSystem is implemented)
     "append"
     (FuncDataCon
-      ["list", "element"] [TIntList, TInt]
+      ["list", "element"] [TIntList, TInt] TIntList
       [ Set "index" (Length "list") -- Get length of list
       , Insert "list" (Variable "index") (Variable "element")
       , Return (Variable "list")
@@ -164,7 +152,7 @@ prelude =
   , Def -- Range: Takes and int and generates Int list [0...input].
     "range"
     (FuncDataCon
-      ["count"] [TInt]
+      ["count"] [TInt] TIntList
       [ Set "index" (Literal (Int 0)) -- Get length of list
       , Set "list"  (Literal (IntList []))
       , While
@@ -200,11 +188,11 @@ buildFuncState oldstate (x : xs) (s : ss) vars funcs p =
 
 -- Utility function to get a prog block out of the function map data
 getFuncProg :: FuncData -> Prog
-getFuncProg (FuncDataCon _ _ prog) = prog
+getFuncProg (FuncDataCon _ _ _ prog) = prog
 
 -- Utility function to get an arg name list out of the function map data
 getFuncArgs :: FuncData -> [String]
-getFuncArgs (FuncDataCon args types _) = args
+getFuncArgs (FuncDataCon args _ _ _) = args
 
 -- Perform the add operation.
 add :: VarVal -> VarVal -> MaybeError VarVal
@@ -509,179 +497,45 @@ run p = prog (ProgState Map.empty Map.empty (prelude ++ p)) -- Adds prelude func
 
 -- Compiler Reinstate - Works on Syntactic Sugar Now
 
-compile :: Prog -> String
-compile p = 
-	case (findLine (ProgState Map.empty Map.empty (prelude ++ p)) (-1) ("Main")) of
-	[] -> pretty([(Loaded, "Use the function run to start the program", NoError, "Main")])
-	_  -> pretty(concatenator (findLine (ProgState Map.empty Map.empty (prelude ++ p)) (-1) ("Main")))
+-- compile :: Prog -> String
+-- compile p = 
+-- 	case (findLine (ProgState Map.empty Map.empty (prelude ++ p)) (-1) ("Main")) of
+-- 	[] -> pretty([(Loaded, "Use the function run to start the program", NoError, "Main")])
+-- 	_  -> pretty(concatenator (findLine (ProgState Map.empty Map.empty (prelude ++ p)) (-1) ("Main")))
 
-concatenator :: [(Int, String, String)] -> CompileStatus
-concatenator [] = []
-concatenator ((c,s,f):xs) = [(Syntaxerror, s, Line c, f)] ++ concatenator xs
+-- concatenator :: [(Int, String, String)] -> CompileStatus
+-- concatenator [] = []
+-- concatenator ((c,s,f):xs) = [(Syntaxerror, s, Line c, f)] ++ concatenator xs
 
-findLine :: State -> Int -> String -> [(Int,String,String)]
-findLine (ProgState _ _ []) _ _ = []
-findLine (ProgState vars funcs ((Def str (FuncDataCon v l f)):xs)) c t = 
-	case (cmd (ProgState vars funcs xs) (Def str (FuncDataCon v l f))) of
-		Error s -> [(c,s,t)] ++ findLine (ProgState vars funcs xs) (c+1) t
-		Result ((ProgState a b z), Nothing) -> (findLine (newFuncState (ProgState Map.empty b f) v l) 1 str) ++ (findLine (ProgState a b z) (c+1) t)
-		Result (_,Just _) -> []
-findLine (ProgState vars funcs (x:xs)) c t = 
-	case (cmd (ProgState vars funcs xs) x) of
-		Error s -> [(c,s,t)] ++ findLine (ProgState vars funcs xs) (c+1) t
-		Result (newstate, Nothing) -> findLine newstate (c+1) t
-		Result (_, Just _) -> []
-
-
-newFuncState :: State -> [String] -> [Type] -> State
-newFuncState curState [] [] = curState
-newFuncState (ProgState types funcs prog) (s:ss) (t:ts) = case t of
-  TInt      -> newFuncState (ProgState (Map.insert s (Int 5) types) funcs prog) ss ts
-  TFlt      -> newFuncState (ProgState (Map.insert s (Float 5.5) types) funcs prog) ss ts
-  TBool     -> newFuncState (ProgState (Map.insert s (Boolean True) types) funcs prog) ss ts
-  TIntList  -> newFuncState (ProgState (Map.insert s (IntList [1,2,3,4,5]) types) funcs prog) ss ts
-  TFltList  -> newFuncState (ProgState (Map.insert s (FloatList [1.5,2.5,3.5,4.5,5.5]) types) funcs prog) ss ts
-  TBoolList -> newFuncState (ProgState (Map.insert s (BoolList [True, False, True]) types) funcs prog) ss ts
+-- findLine :: State -> Int -> String -> [(Int,String,String)]
+-- findLine (ProgState _ _ []) _ _ = []
+-- findLine (ProgState vars funcs ((Def str (FuncDataCon v l f)):xs)) c t = 
+-- 	case (cmd (ProgState vars funcs xs) (Def str (FuncDataCon v l f))) of
+-- 		Error s -> [(c,s,t)] ++ findLine (ProgState vars funcs xs) (c+1) t
+-- 		Result ((ProgState a b z), Nothing) -> (findLine (newFuncState (ProgState Map.empty b f) v l) 1 str) ++ (findLine (ProgState a b z) (c+1) t)
+-- 		Result (_,Just _) -> []
+-- findLine (ProgState vars funcs (x:xs)) c t = 
+-- 	case (cmd (ProgState vars funcs xs) x) of
+-- 		Error s -> [(c,s,t)] ++ findLine (ProgState vars funcs xs) (c+1) t
+-- 		Result (newstate, Nothing) -> findLine newstate (c+1) t
+-- 		Result (_, Just _) -> []
 
 
-pretty :: CompileStatus -> String
-pretty [] = "\n\n"
-pretty ((Loaded, s, _, f):xs) = "Program Loaded\n" ++ s ++ "\n" ++  f ++ "Function\n\n"
-pretty ((_, s, (Line i), f):xs) = "Error: " ++ s ++ "\nFound on line " ++ (show i) ++ " of Function: " ++ f ++ "\n\n" ++ pretty xs
-
--- -- Builds a new state object for use in a function call.  Takes arguments in this order: current program state, list of expr to fill args, list of arg names, empty var map (to be built), function definitions (to be passed), program block to execute
--- buildFuncTypeState
---   :: TypeState
---   -> [Expr]
---   -> [String]
---   -> VarTypeAssociation
---   -> FuncTypeAssociation
---   -> Prog
---   -> Maybe TypeState
--- buildFuncTypeState _ [] [] vars funcs p = Just (ProgTypeState vars funcs p)
--- buildFuncTypeState _ [] _  vars funcs p = Nothing
--- buildFuncTypeState _ _  [] vars funcs p = Nothing
--- buildFuncTypeState oldstate (x : xs) (s : ss) vars funcs p =
---   case exprType oldstate x of
---     Result v -> buildFuncTypeState oldstate xs ss (Map.insert s v vars) funcs p
---     Error  s -> Error s
-
--- -- Check the add operation types.
--- addType :: Type -> Type -> Maybe Type
--- addType TBool TBool = Nothing
--- addType x x = Just x
--- addType _ _ = Nothing
-
--- -- Check the sub operation types.
--- subtractType :: Type -> Type -> Maybe Type
--- subtractType TBool TBool = Nothing
--- subtractType x x = Just x
--- subtractType _ _ = Nothing
-
--- -- Check the mul operation types.
--- multiplyType :: Type -> Type -> Maybe Type
--- multiplyType TBool TBool = Nothing
--- multiplyType x x = Just x
--- multiplyType _ _ = Nothing
-
--- -- Check the div operation types.
--- divideType :: Type -> Type -> Maybe Type
--- divideType TBool TBool = Nothing
--- divideType x x = Just x
--- divideType _ _ = Nothing
-
--- -- Check the equal operation types.
--- equalType :: Type -> Type -> Maybe Type
--- equalType x x = Just TBool
--- equalType _ _ = Nothing
-
--- -- Check the less than operation types.
--- lessType :: Type -> Type -> Maybe Type
--- lessType TBool TBool = Nothing
--- lessType x x = Just x
--- lessType _ _ = Nothing
-
--- -- Check the and operation types.
--- andType :: VarVal -> VarVal -> MaybeError VarVal
--- andType TBool TBool = Just TBool
--- andType _ _ = Nothing
-
--- -- Checks the types of an operation on two values.
--- operationType :: Operation -> Type -> Type -> Maybe Type
--- operationType Add   x y = add x y
--- operationType Sub   x y = subtract x y
--- operationType Mul   x y = multiply x y
--- operationType Div   x y = divide x y
--- operationType Equal x y = equal x y
--- operationType Less  x y = less x y
--- operationType And   x y = and x y
+-- newFuncState :: State -> [String] -> [Type] -> State
+-- newFuncState curState [] [] = curState
+-- newFuncState (ProgState types funcs prog) (s:ss) (t:ts) = case t of
+--   TInt      -> newFuncState (ProgState (Map.insert s (Int 5) types) funcs prog) ss ts
+--   TFlt      -> newFuncState (ProgState (Map.insert s (Float 5.5) types) funcs prog) ss ts
+--   TBool     -> newFuncState (ProgState (Map.insert s (Boolean True) types) funcs prog) ss ts
+--   TIntList  -> newFuncState (ProgState (Map.insert s (IntList [1,2,3,4,5]) types) funcs prog) ss ts
+--   TFltList  -> newFuncState (ProgState (Map.insert s (FloatList [1.5,2.5,3.5,4.5,5.5]) types) funcs prog) ss ts
+--   TBoolList -> newFuncState (ProgState (Map.insert s (BoolList [True, False, True]) types) funcs prog) ss ts
 
 
--- checkFuncArgsType :: TypeState -> [Expr] -> [Type] -> Boolean
--- checkFuncArgsType _ [] [] = True
--- checkFuncArgsType _ [] _ = False
--- checkFuncArgsType _ _ [] = False
--- checkFuncArgsType s (x:xs) (y:ys) = case exprType s x of
---   Just z -> case z == y of
---     True  -> checkFuncArgsType s xs ys
---     False -> False
---   _      -> Nothing
-
--- exprType :: TypeState -> Expr -> Maybe Type
--- exprType oldstate (Operation oper expr1 expr2) = case (exprType oldstate expr1, exprType oldstate expr2) of
---   (Just x, Just y) -> operationType x y
---   _                -> Nothing
--- exprType oldstate (Not expr) = case exprType oldstate expr of
---   Just TBool -> TBool
---   _          -> Nothing
--- exprType (ProgState vars _ _) (Variable name) = Map.lookup name vars
--- exprType _ (Literal (Int _)) = Just TInt
--- exprType _ (Literal (Flt _)) = Just TFlt
--- exprType _ (Literal (Boolean _)) = Just TBool
--- exprType (ProgTypeState vars funcs p) (Function name args) = -- Might need to change this case to work with new function definition
---   case Map.lookup name funcs of
---     Just (FuncTypeData argtypes returntype) -> case checkFuncArgsType (ProgTypeState vars funcs p) args argtypes of
---       True -> Just returntype
---       False -> Nothing
---     _ -> Nothing
-
--- cmdType :: TypeState -> Cmd -> Maybe (State, Maybe Type)
--- cmdType oldstate (Def name funcdata) = case progType (buildFuncTypeState oldstate ) of -- This case is non-functional, needs to be rewritten to work with new function definition
---   Just t -> Just (ProgState vars (Map.insert name (FuncTypeData fff t)))
---   Nothing -> Nothing
--- cmdType (ProgTypeState vars funcs p) (Set name val) =
---   case exprType (ProgTypeState vars funcs p) val of
---     Just t -> case Map.lookup name vars of
---       Just u -> case t == u of
---         True -> Just (ProgTypeState vars funcs p, Nothing)
---         False -> Nothing
---       Nothing -> Just (ProgTypeState (Map.insert name t vars) funcs p, Nothing)
---     Nothing -> Nothing
--- cmdType (ProgTypeState vars funcs p) (If condition block) = -- This case probably won't work, maybe prog is the wrong thing to call here.  possibly new function needed?  Issue here is that prog returns Error or a Type, and an if statement block doesn't necessarily return anything.
---   case exprEval (ProgTypeState vars funcs p) condition of
---     Just TBool -> case progType (ProgTypeState vars funcs p) of
---       Just t -> Just ((ProgTypeState vars funcs p), Just t)
---       Nothing -> Nothing
---     Nothing                      -> Nothing
--- cmdType (ProgTypeState vars funcs p) (While condition block) = -- Same as the above comment
---   case exprEval (ProgTypeState vars funcs p) condition of
---     Just TBool -> case progType (ProgTypeState vars funcs p) of
---       Just t -> Just (ProgTypeState vars funcs p, Just t)
---       Nothing -> Nothing
---     Nothing                      -> Nothing
--- cmdType (ProgTypeState vars funcs p) (Return expr1) =
---   case exprType (ProgTypeState vars funcs p) expr1 of
---     Just t -> Just (ProgTypeState vars funcs p, Just t)
---     Nothing -> Nothing
-
-
--- progType :: TypeState -> Maybe Type
--- progType (ProgTypeState _    _     []      ) = Just TBool --base case
--- progType (ProgTypeState vars funcs (x : xs)) = case cmdType (ProgTypeState vars funcs xs) x of
---   Just (newstate, Nothing) -> progType newstate
---   Just (_       , Just x ) -> Just x
---   Nothing                   -> Nothing
-
+-- pretty :: CompileStatus -> String
+-- pretty [] = "\n\n"
+-- pretty ((Loaded, s, _, f):xs) = "Program Loaded\n" ++ s ++ "\n" ++  f ++ "Function\n\n"
+-- pretty ((_, s, (Line i), f):xs) = "Error: " ++ s ++ "\nFound on line " ++ (show i) ++ " of Function: " ++ f ++ "\n\n" ++ pretty xs
 
 
 
