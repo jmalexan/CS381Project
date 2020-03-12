@@ -660,12 +660,20 @@ findLine (ProgState vars funcs ((Def str (FuncDataCon v l rt f)) : xs)) c t = --
     Result ((ProgState a b z), Nothing) ->
       (findLine (newFuncState (ProgState Map.empty b f) v l) 1 str)
         ++ (findLine (ProgState a b z) (c + 1) t)
+        ++ (funcTypeAlign str v l)
     Result (_, Just _) -> []
 findLine (ProgState vars funcs (x : xs)) c t =
   case (cmd (ProgState vars funcs xs) x) of
     Error s -> [(c, s, t)] ++ findLine (ProgState vars funcs xs) (c + 1) t
     Result (newstate, Nothing) -> findLine newstate (c + 1) t
     Result (_, Just _) -> []
+
+
+funcTypeAlign :: String -> [String] -> [Type] -> [(Int, String, String)]
+funcTypeAlign name [] [] = []
+funcTypeAlign name (s:ss) [] = [(0, "Parameters passed have inconsistent matching to types", name)]
+funcTypeAlign name [] (t:ts) = [(0, "Parameters passed have inconsistent matching to types", name)]
+funcTypeAlign name (s:ss) (t:ts) = funcTypeAlign name ss ts
 
 -- Use this to build a working state for functions to be checked for errors based on type
 newFuncState :: State -> [String] -> [Type] -> State
