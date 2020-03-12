@@ -16,6 +16,9 @@ import           Prelude                 hiding ( EQ
                                                 , or
                                                 , subtract
                                                 )
+import           Data.Char                      ( ord
+                                                , chr
+                                                )
 
 
 --------------------------------------------------------------
@@ -89,7 +92,7 @@ data Expr = Operation Operation Expr Expr -- Applies the operation to the 2 expr
           | Element String Expr  -- Fetch the value of a specific element in a list ex: `a = b + myList[3]`
           | Length String -- Get the length of a list
           | Concat Expr Expr -- Concatenate two lists
-          | Cast Expr
+          | Cast Expr Type-- Cast from a VarVal of one type to another (specified by Type).
           | Function String [Expr] -- Calls a function.
   deriving Show
 
@@ -128,8 +131,10 @@ data State = ProgState VarAssociation FuncAssociation Prog
 data TypeState = ProgTypeState VarTypeAssociation FuncAssociation Prog
   deriving Show
 
+
+
 --------------------------------------------------------------
--- Syntactic sugar
+-- LanguageExtension (Syntactic sugar)
 --------------------------------------------------------------
 
 or :: Expr -> Expr -> Expr
@@ -151,8 +156,9 @@ assign list index value =
   If (Literal (Boolean True)) [Delete list index, Insert list index value]
 
 
+
 --------------------------------------------------------------
--- Built-in Library
+-- Prelude (Built-in Library)
 --------------------------------------------------------------
 
 prelude :: Prog
@@ -184,8 +190,10 @@ prelude =
     )
   ]
 
+
+
 --------------------------------------------------------------
--- Evaluation
+ -- Functions implementation
 --------------------------------------------------------------
 
 -- Builds a new state object for use in a function call.  Takes arguments in this order: current program state, list of expr to fill args, list of arg names, empty var map (to be built), function definitions (to be passed), program block to execute
@@ -212,6 +220,12 @@ getFuncProg (FuncDataCon _ _ prog) = prog
 -- Utility function to get an arg name list out of the function map data
 getFuncArgs :: FuncData -> [String]
 getFuncArgs (FuncDataCon args types _) = args
+
+
+
+--------------------------------------------------------------
+-- Operations implementation
+--------------------------------------------------------------
 
 -- Perform the add operation.
 add :: VarVal -> VarVal -> MaybeError VarVal
@@ -271,6 +285,14 @@ operationEval Equal x y = equal x y
 operationEval Less  x y = less x y
 operationEval And   x y = and x y
 
+
+
+--------------------------------------------------------------
+-- List implementation
+--------------------------------------------------------------
+
+-- Expressions --
+
 element :: [a] -> Int -> Maybe a
 element []            _ = Nothing -- Out of range
 element (elem : list) 0 = Just elem -- Desired
@@ -309,6 +331,159 @@ concatenateLists (String first) (String second) =
   Result (String (first ++ second))
 concatenateLists _ _ =
   Error "Type Error: Concatenation is only allowed between the same list types."
+
+-- Params: List, Insert, Value, New List
+insert :: [a] -> Int -> a -> Maybe [a]
+insert list          0 v = Just (v : list)
+insert (head : list) i v = case insert list (i - 1) v of
+  Just newList -> Just (head : newList)
+  Nothing      -> Nothing
+insert [] _ _ = Nothing -- Out of range
+
+-- Parameters:  List      Insert      Value     New List
+insertInList :: VarVal -> Int -> VarVal -> MaybeError VarVal
+-- Insert a Float into a Float list
+insertInList (FloatList list) index (Float value) =
+  case insert list index value of
+    Just newList -> Result (FloatList newList)
+    Nothing      -> Error "Index Error: Index out of range"
+-- Insert an Int into an Int list
+insertInList (IntList list) index (Int value) = case insert list index value of
+  Just newList -> Result (IntList newList)
+  Nothing      -> Error "Index Error: Index out of range"
+-- Insert a Bool into a Bool list
+insertInList (BoolList list) index (Boolean value) =
+  case insert list index value of
+    Just newList -> Result (BoolList newList)
+    Nothing      -> Error "Index Error: Index out of range"
+insertInList (String list) index (Character value) =
+  case insert list index value of
+    Just newList -> Result (String newList)
+    Nothing      -> Error "Index Error: Index out of range"
+-- Type error
+insertInList _ _ _ = Error "Type Error: Mismatch when inserting in list."
+
+-- Commands --
+
+-- Params: List, Insert, Value, New List
+delete :: [a] -> Int -> Maybe [a]
+delete (head : list) 0 = Just list -- Remove element
+delete (head : list) i = case delete list (i - 1) of
+  Just newList -> Just (head : newList)
+  Nothing      -> Nothing
+delete [] _ = Nothing -- Out of range
+
+-- Parameters:  List      Insert  New List
+deleteFromList :: VarVal -> Int -> MaybeError VarVal
+-- Delete from a Float list
+deleteFromList (FloatList list) index = case delete list index of
+  Just newList -> Result (FloatList newList)
+  Nothing      -> Error "Index Error: Index out of range"
+-- Delete from an Int list
+deleteFromList (IntList list) index = case delete list index of
+  Just newList -> Result (IntList newList)
+  Nothing      -> Error "Index Error: Index out of range"
+-- Delete from a Bool list
+deleteFromList (BoolList list) index = case delete list index of
+  Just newList -> Result (BoolList newList)
+  Nothing      -> Error "Index Error: Index out of range"
+-- Delete character from string
+deleteFromList (String list) index = case delete list index of
+  Just newList -> Result (String newList)
+  Nothing      -> Error "Index Error: Index out of range"
+
+-- Maps a variable name, list of varVals, and block of code and copies the block for
+-- each item, setting the name to hold each element in each block.
+forEachProgram :: String -> [VarVal] -> Prog -> Prog
+forEachProgram _ [] _ = []
+forEachProgram name (element : list) block =
+  blockInForEach name element block ++ forEachProgram name list block
+
+ -- Utility helper for forEachProgram that produces a program: assign element to var (String), block of code
+blockInForEach :: String -> VarVal -> Prog -> Prog
+blockInForEach name element innerBlock =
+  Set name (Literal element) : innerBlock
+
+
+
+--------------------------------------------------------------
+-- Casting
+--------------------------------------------------------------
+
+-- Converts a String to an Int
+stringToInt :: String -> MaybeError Int
+stringToInt string = stringToIntHelper (reverse string) 0 1
+
+stringToIntHelper :: String -> Int -> Int -> MaybeError Int
+stringToIntHelper (char : str) f m
+  | (0 <= val && val <= 10) = stringToIntHelper str (f + (val * m)) (m * 10)
+  | otherwise               = Error "Casting from String to Float failed."
+  where val = ((ord char) - 48)
+stringToIntHelper [] f _ = Result f
+
+-- Converts a String to a Float
+stringToFloat :: String -> MaybeError Float
+stringToFloat string = stringToFloatHelper (reverse string) 0 False 1
+
+stringToFloatHelper :: String -> Float -> Bool -> Int -> MaybeError Float
+stringToFloatHelper ('.' : str) f True _ =
+  Error "Casting from String to Float failed."
+stringToFloatHelper ('.' : str) f False m =
+  stringToFloatHelper str (f / (fromIntegral m)) True (1)
+stringToFloatHelper (char : str) f p m
+  | (0 <= val && val <= 10) = stringToFloatHelper -- No period yet
+    str
+    (f + (fromIntegral (val * m)))
+    p
+    (m * 10)
+  | otherwise = Error "Casting from String to Float failed."
+  where val = ((ord char) - 48)
+stringToFloatHelper [] f _ _ = Result f
+
+-- Converts String to Bool
+stringToBool :: String -> MaybeError Bool
+stringToBool "True"  = Result True
+stringToBool "true"  = Result True
+stringToBool "False" = Result False
+stringToBool "false" = Result False
+stringToBool _       = Error "Casting from String to Bool failed."
+
+-- TODO
+intToChar :: Int -> MaybeError Char
+intToChar val | 0 <= val && val <= 127 = Result (chr val)
+              | otherwise = Error "Casting from Int to Char failed."
+
+castValueToType :: VarVal -> Type -> MaybeError VarVal
+-- Int -> ?
+castValueToType (Int x) (TInt ) = Result (Int x) -- Always succeeds.
+castValueToType (Int x) (TFlt ) = Result (Float (fromIntegral x)) -- Always succeeds.
+castValueToType (Int x) (TChar) = case intToChar x of -- Can fail.
+  Result c -> Result (Character c)
+  Error  s -> Error s
+castValueToType (Int       x) (TString) = Result (String (show x)) -- Always succeeds.
+-- Float -> ?
+castValueToType (Float     x) (TInt   ) = Result (Int (floor x)) -- Always succeeds.
+castValueToType (Float     x) (TFlt   ) = Result (Float x) -- Always succeeds.
+castValueToType (Float     x) (TString) = Result (String (show x)) -- Always succeeds.
+-- Char -> ?
+castValueToType (Character x) (TInt   ) = Result (Int (ord x)) -- Always succeeds.
+castValueToType (Character x) (TChar  ) = Result (Character x) -- Always succeeds.
+castValueToType (Character x) (TString) = Result (String [x]) -- Always succeeds.
+-- String -> ?
+castValueToType (String    x) (TInt   ) = case stringToInt x of
+  Result i -> Result (Int i)
+  Error  s -> Error s
+castValueToType (String x) (TFlt) = case stringToFloat x of
+  Result i -> Result (Float i)
+  Error  s -> Error s
+castValueToType (String x) (TBool) = case stringToBool x of
+  Result i -> Result (Boolean i)
+  Error  s -> Error s
+castValueToType (String x) (TString) = Result (String x) -- Always succeeds.
+
+--------------------------------------------------------------
+-- Compile (Evaluation)
+--------------------------------------------------------------
 
 -- Evaluates an expression to produce a VarVal or, if something is wrong, an Error.
 exprEval :: State -> Expr -> MaybeError VarVal
@@ -353,6 +528,10 @@ exprEval (ProgState vars funcs p) (Concat left right) =
         Error  s       -> Error s
       (Error s, _      ) -> Error s
       (_      , Error s) -> Error s
+exprEval (ProgState vars funcs p) (Cast expr newType) =
+  case exprEval (ProgState vars funcs p) expr of
+    (Result value) -> castValueToType value newType
+    Error s        -> Error s
 exprEval (ProgState vars funcs p) (Function name args) =
   case Map.lookup name funcs of
     Just func ->
@@ -367,76 +546,6 @@ exprEval (ProgState vars funcs p) (Function name args) =
           Result newstate -> prog newstate
           Error  s        -> Error s
     _ -> Error ("Function '" ++ name ++ "' undefined")
-
--- Params: List, Insert, Value, New List
-insert :: [a] -> Int -> a -> Maybe [a]
-insert list          0 v = Just (v : list)
-insert (head : list) i v = case insert list (i - 1) v of
-  Just newList -> Just (head : newList)
-  Nothing      -> Nothing
-insert [] _ _ = Nothing -- Out of range
-
--- Parameters:  List      Insert      Value     New List
-insertInList :: VarVal -> Int -> VarVal -> MaybeError VarVal
--- Insert a Float into a Float list
-insertInList (FloatList list) index (Float value) =
-  case insert list index value of
-    Just newList -> Result (FloatList newList)
-    Nothing      -> Error "Index Error: Index out of range"
--- Insert an Int into an Int list
-insertInList (IntList list) index (Int value) = case insert list index value of
-  Just newList -> Result (IntList newList)
-  Nothing      -> Error "Index Error: Index out of range"
--- Insert a Bool into a Bool list
-insertInList (BoolList list) index (Boolean value) =
-  case insert list index value of
-    Just newList -> Result (BoolList newList)
-    Nothing      -> Error "Index Error: Index out of range"
-insertInList (String list) index (Character value) =
-  case insert list index value of
-    Just newList -> Result (String newList)
-    Nothing      -> Error "Index Error: Index out of range"
--- Type error
-insertInList _ _ _ = Error "Type Error: Mismatch when inserting in list."
-
--- Params: List, Insert, Value, New List
-delete :: [a] -> Int -> Maybe [a]
-delete (head : list) 0 = Just list -- Remove element
-delete (head : list) i = case delete list (i - 1) of
-  Just newList -> Just (head : newList)
-  Nothing      -> Nothing
-delete [] _ = Nothing -- Out of range
-
--- Parameters:  List      Insert  New List
-deleteFromList :: VarVal -> Int -> MaybeError VarVal
--- Delete from a Float list
-deleteFromList (FloatList list) index = case delete list index of
-  Just newList -> Result (FloatList newList)
-  Nothing      -> Error "Index Error: Index out of range"
--- Delete from an Int list
-deleteFromList (IntList list) index = case delete list index of
-  Just newList -> Result (IntList newList)
-  Nothing      -> Error "Index Error: Index out of range"
--- Delete from a Bool list
-deleteFromList (BoolList list) index = case delete list index of
-  Just newList -> Result (BoolList newList)
-  Nothing      -> Error "Index Error: Index out of range"
--- Delete character from string
-deleteFromList (String list) index = case delete list index of
-  Just newList -> Result (String newList)
-  Nothing      -> Error "Index Error: Index out of range"
-
--- Maps a variable name, list of varVals, and block of code and copies the block for
--- each item, setting the name to hold each element in each block.
-forEachProgram :: String -> [VarVal] -> Prog -> Prog
-forEachProgram _ [] _ = []
-forEachProgram name (element : list) block =
-  blockInForEach name element block ++ forEachProgram name list block
-
- -- Utility helper for forEachProgram that produces a program: assign element to var (String), block of code
-blockInForEach :: String -> VarVal -> Prog -> Prog
-blockInForEach name element innerBlock =
-  Set name (Literal element) : innerBlock
 
 -- Evaluate currently executing command. Loops and Conditionals are handled by injecting commands onto the current state's program.
 cmd :: State -> Cmd -> MaybeError (State, Maybe VarVal)

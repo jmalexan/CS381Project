@@ -198,3 +198,14 @@ testStringConcat = run
     [ Set "myString" (Literal (String "You're a wizard, "))
     , Return (Concat (Variable "myString") (Literal (String "Harry")))
     ]
+
+-- | Tests casting string to int
+--
+--   >>> testCasting
+--   Result (Int 12382)
+--
+testCasting :: MaybeError VarVal
+testCasting = run
+    [ Set "myString" (Cast (Literal (String "12382")) TInt)
+    , Return (Variable "myString")
+    ]
