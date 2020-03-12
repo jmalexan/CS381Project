@@ -215,3 +215,103 @@ progType (ProgTypeState vars funcs (x : xs)) =
 
 typecheck :: Prog -> Maybe Type
 typecheck p = progType (ProgTypeState Map.empty Map.empty (prelude ++ p)) -- Adds prelude functions
+
+compile :: Prog -> String
+compile p =
+  case
+      ((findLine (ProgState Map.empty Map.empty (prelude ++ p)) (-1) ("Main")) ++ (typeLine (ProgTypeState Map.empty Map.empty (prelude ++ p) ) (-1) ("Main")))
+    of
+      [] -> pretty
+        ([ ( Loaded
+           , "Use the function run to start the program"
+           , NoError
+           , "Main"
+           )
+         ]
+        )
+      _ -> pretty
+        (concatenator(
+          (findLine (ProgState Map.empty Map.empty (prelude ++ p) ) (-1) ("Main"))
+          ++ (typeLine (ProgTypeState Map.empty Map.empty (prelude ++ p) ) (-1) ("Main")))
+        )
+
+-- Concatenator - Compiles the error codes into a compile status that we can pretty-fy
+concatenator :: [(Int, String, String)] -> CompileStatus
+concatenator [] = []
+concatenator ((c, s, f) : xs) =
+  [(Syntaxerror, s, Line c, f)] ++ concatenator xs
+
+-- Use this to itereatively find a line of a program in which the error is located, and what function
+findLine :: State -> Int -> String -> [(Int, String, String)]
+findLine (ProgState _ _ []) _ _ = []
+findLine (ProgState vars funcs ((Def str (FuncDataCon v l rt f)) : xs)) c t = -- Special case pattern - if we define a neew function, prepare to check it
+  case (cmd (ProgState vars funcs xs) (Def str (FuncDataCon v l rt f))) of
+    Error s -> [(c, s, t)] ++ findLine (ProgState vars funcs xs) (c + 1) t
+    Result ((ProgState a b z), Nothing) ->
+      (findLine (newFuncState (ProgState Map.empty b f) v l) 1 str)
+        ++ (findLine (ProgState a b z) (c + 1) t)
+        ++ (funcTypeAlign str v l)
+    Result (_, Just _) -> []
+findLine (ProgState vars funcs (x : xs)) c t =
+  case (cmd (ProgState vars funcs xs) x) of
+    Error s -> [(c, s, t)] ++ findLine (ProgState vars funcs xs) (c + 1) t
+    Result (newstate, Nothing) -> findLine newstate (c + 1) t
+    Result (_, Just _) -> []
+
+
+funcTypeAlign :: String -> [String] -> [Type] -> [(Int, String, String)]
+funcTypeAlign name [] [] = []
+funcTypeAlign name (s:ss) [] = [(0, "Parameters passed have inconsistent matching to types", name)]
+funcTypeAlign name [] (t:ts) = [(0, "Parameters passed have inconsistent matching to types", name)]
+funcTypeAlign name (s:ss) (t:ts) = funcTypeAlign name ss ts
+
+-- Use this to build a working state for functions to be checked for errors based on type
+newFuncState :: State -> [String] -> [Type] -> State
+newFuncState curState                     []       []       = curState
+newFuncState curState [] (t:ts) = curState
+newFuncState curState (s:ss) [] = curState
+newFuncState (ProgState types funcs prog) (s : ss) (t : ts) = case t of
+  TInt ->
+    newFuncState (ProgState (Map.insert s (Int 5) types) funcs prog) ss ts
+  TFlt ->
+    newFuncState (ProgState (Map.insert s (Float 5.5) types) funcs prog) ss ts
+  TBool -> newFuncState
+    (ProgState (Map.insert s (Boolean True) types) funcs prog)
+    ss
+    ts
+  TIntList -> newFuncState
+    (ProgState (Map.insert s (IntList [1, 2, 3, 4, 5]) types) funcs prog)
+    ss
+    ts
+  TFltList -> newFuncState
+    (ProgState (Map.insert s (FloatList [1.5, 2.5, 3.5, 4.5, 5.5]) types)
+               funcs
+               prog
+    )
+    ss
+    ts
+  TBoolList -> newFuncState
+    (ProgState (Map.insert s (BoolList [True, False, True]) types) funcs prog)
+    ss
+    ts
+
+typeLine :: TypeState -> Int -> String -> [(Int, String, String)]
+typeLine (ProgTypeState types funcs (cmd:cmds)) ind fname = case (cmdType (ProgTypeState types funcs cmds) cmd) of
+  Nothing -> [(ind, "Data Type Error Found", fname)] ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
+  Just (newstate, Nothing) -> typeLine newstate (ind + 1) fname
+  Just (_       , Just x ) -> []
+
+-- Make it look nice and like a real readable compiler!
+pretty :: CompileStatus -> String
+pretty [] = "\n\n"
+pretty ((Loaded, s, _, f) : xs) =
+  "Program Loaded\n" ++ s ++ "\n" ++ f ++ " Function\n\n"
+pretty ((_, s, (Line i), f) : xs) =
+  "Error: "
+    ++ s
+    ++ "\nFound on line "
+    ++ (show i)
+    ++ " of Function: "
+    ++ f
+    ++ "\n\n"
+    ++ pretty xs
