@@ -25,8 +25,8 @@ Static type system : A user attempting to write and use code in the programming 
 4. Testing Bad Input: `*Project> prog badState`
 
 ## Todo:
-- Develop Static Type system.
-- @Julian figure out if list functions have correct constructor parameter types (String vs. Expr).
+- [!important] Develop Static Type system.
+- @Julian Change list expressions to use Expr.
 - Add context to errors using the fact we capture the Error text everywhere.
 - Expand unit tests to cover more of the language.
 - 💡 Spike: Research `do` notation and monads.
@@ -34,6 +34,7 @@ Static type system : A user attempting to write and use code in the programming 
 - 🤸🏼‍♀️ Stretch: Lists within lists.
 
 ## Done
+- @Julian figure out if list functions have correct constructor parameter types (~String vs.~ Expr).
 - Add simple `doctest` unit tests.
 - Lists:
     - Appending (syntactic sugar/library level).
