@@ -7,6 +7,10 @@ Welcome to Barely Functional-C, an *imperitive* language. The goals of this lang
 ## Execution Instructions
 Open via GHCI 'Examples.hs'
 
+```
+$ ghci Examples.hs
+```
+
 ### Good Examples
 
 #### Quicksort Implementation
