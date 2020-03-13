@@ -472,7 +472,7 @@ prog (ProgState vars funcs (x : xs)) = case cmd (ProgState vars funcs xs) x of
 
 -- Runs a program *WITHOUT* type checking by initializing an empty state and processing the program.
 run :: Prog -> MaybeError VarVal
-run p = prog (ProgState Map.empty Map.empty (prelude ++ p)) -- Adds prelude functions
+run p = prog (ProgState Map.empty Map.empty p) -- Adds prelude functions
 
 compile :: Prog -> IO ()
 compile p = case typecheck (prelude ++ p) of
@@ -491,8 +491,8 @@ compile p = case typecheck (prelude ++ p) of
 trace :: Prog -> String
 trace p =
   case
-      (  (findLine (ProgState Map.empty Map.empty (prelude ++ p)) (-1) ("Main"))
-      ++ (typeLine (ProgTypeState Map.empty Map.empty (prelude ++ p))
+      (  (findLine (ProgState Map.empty Map.empty p) (-1) ("Main"))
+      ++ (typeLine (ProgTypeState Map.empty Map.empty p)
                    (-1)
                    ("Main")
          )
@@ -508,11 +508,11 @@ trace p =
         )
       _ -> pretty
         (concatenator
-          (  (findLine (ProgState Map.empty Map.empty (prelude ++ p))
+          (  (findLine (ProgState Map.empty Map.empty p)
                        (-1)
                        ("Main")
              )
-          ++ (typeLine (ProgTypeState Map.empty Map.empty (prelude ++ p))
+          ++ (typeLine (ProgTypeState Map.empty Map.empty p)
                        (-1)
                        ("Main")
              )
@@ -584,10 +584,59 @@ newFuncState (ProgState types funcs prog) (s : ss) (t : ts) = case t of
 -- Use to locate type errors with the help of the type state checker
 typeLine :: TypeState -> Int -> String -> [(Int, String, String)]
 typeLine (ProgTypeState _ _ []) _ _ = []
-typeLine (ProgTypeState types funcs (cmd : cmds)) ind fname =
-  case (cmdType (ProgTypeState types funcs cmds) cmd) of
+typeLine (ProgTypeState types funcs ((Def str fndat): cmds)) ind fname =
+  case (cmdType (ProgTypeState types funcs cmds) (Def str fndat)) of
     Error s ->
-      [(ind, "RunTime Data Type Error Found", fname)]
+      [(ind, "RunTime Data Type Error: Function Definition", fname)]
+        ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
+    Result (newstate, Nothing) -> typeLine newstate (ind + 1) fname
+    Result (_       , Just x ) -> []
+typeLine (ProgTypeState types funcs ((Set str exp) : cmds)) ind fname =
+  case (cmdType (ProgTypeState types funcs cmds) (Set str exp)) of
+    Error s ->
+      [(ind, "RunTime Data Type Error: Variable Definition", fname)]
+        ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
+    Result (newstate, Nothing) -> typeLine newstate (ind + 1) fname
+    Result (_       , Just x ) -> []
+typeLine (ProgTypeState types funcs ((Insert str exp expt) : cmds)) ind fname =
+  case (cmdType (ProgTypeState types funcs cmds) (Insert str exp expt)) of
+    Error s ->
+      [(ind, "RunTime Data Type Error: Insertion in List", fname)]
+        ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
+    Result (newstate, Nothing) -> typeLine newstate (ind + 1) fname
+    Result (_       , Just x ) -> []
+typeLine (ProgTypeState types funcs ((Delete str exp) : cmds)) ind fname =
+  case (cmdType (ProgTypeState types funcs cmds) (Delete str exp)) of
+    Error s ->
+      [(ind, "RunTime Data Type Error: Deletion in List", fname)]
+        ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
+    Result (newstate, Nothing) -> typeLine newstate (ind + 1) fname
+    Result (_       , Just x ) -> []
+typeLine (ProgTypeState types funcs ((If exp ifprg) : cmds)) ind fname =
+  case (cmdType (ProgTypeState types funcs cmds) (If exp ifprg)) of
+    Error s ->
+      [(ind, "RunTime Data Type Error: If Statement", fname)]
+        ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
+    Result (newstate, Nothing) -> typeLine newstate (ind + 1) fname
+    Result (_       , Just x ) -> []
+typeLine (ProgTypeState types funcs ((While exp whprg) : cmds)) ind fname =
+  case (cmdType (ProgTypeState types funcs cmds) (While exp whprg)) of
+    Error s ->
+      [(ind, "RunTime Data Type Error: While Loop", fname)]
+        ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
+    Result (newstate, Nothing) -> typeLine newstate (ind + 1) fname
+    Result (_       , Just x ) -> []
+typeLine (ProgTypeState types funcs ((ForEach str exp feprg) : cmds)) ind fname =
+  case (cmdType (ProgTypeState types funcs cmds) (ForEach str exp feprg)) of
+    Error s ->
+      [(ind, "RunTime Data Type Error: For Each Statement", fname)]
+        ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
+    Result (newstate, Nothing) -> typeLine newstate (ind + 1) fname
+    Result (_       , Just x ) -> []
+typeLine (ProgTypeState types funcs ((Return exp) : cmds)) ind fname =
+  case (cmdType (ProgTypeState types funcs cmds) (Return exp)) of
+    Error s ->
+      [(ind, "RunTime Data Type Error: Return Type", fname)]
         ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
     Result (newstate, Nothing) -> typeLine newstate (ind + 1) fname
     Result (_       , Just x ) -> []
