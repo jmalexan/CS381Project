@@ -22,30 +22,3 @@ Static type system : A user attempting to write and use code in the programming 
 1. Open via GHCI 'Examples.hs'
 1. Testing Good Input: `*Examples> compile quickSort`
 1. Testing Bad Input: `*Examples> compile badProg`
-
-## Todo:
-- @Julian Change list expressions to use Expr.
-- @Jonathan Add explanations to type errors.
-- @Faaiq & Jonathan Add context to errors using the fact we capture the Error text everywhere.
-- Expand unit tests to cover more of the language.
-
-## Done
-- @Julian figure out if list functions have correct constructor parameter types (~String vs.~ Expr).
-- Add simple `doctest` unit tests.
-- Lists:
-    - Appending (syntactic sugar/library level).
-    - Range(start, end) function (library level).
-    - Getting length (core).
-    - Assigning expressions at index (syntactic sugar using delete and insert).
-    - Deleting elements (~syntactic sugar using for each to make a copy~ core) (Julian thinks declaring variable names in syntactic sugar should be avoided, and the wouldn't be generic).
-    - Iterate for each element (~syntactic sugar~ core).
-    - Inserting expressions at index (core).
-    - Getting elements (core).
-- Learn how to use Map.
-- Simplify language core by using nested types for constructors that take same number of args.
-- Simplify language core by moving some features to synactic sugar.
-- Develop the abstract syntax (grammar).
-- Create semantic domain.
-- Write example functions for testing.
-- Move return parsing into `cmd` and change `prog` to check the result of cmd.
-- Add custom exceptions (??) instead of using falling back on pattern match failure errors.
