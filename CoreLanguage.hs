@@ -87,10 +87,6 @@ type Prog = [Cmd]
 
 type FunctionName = String
 
-type CompileState = (CompVal, String, ErrorLine, FunctionName)
-
-type CompileStatus = [CompileState]
-
 -- A program state includes the variables, functions, and the program itself.
 data State = ProgState VarAssociation FuncAssociation Prog
   deriving Show

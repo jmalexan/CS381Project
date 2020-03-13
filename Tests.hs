@@ -213,3 +213,11 @@ testCasting = run
     [ Set "myString" (Cast (Literal (String "12382")) TInt)
     , Return (Variable "myString")
     ]
+
+-- | Tests casting string to int
+--
+--   >>> testCastingFlt
+--   Result (Float 69.42)
+--
+testCastingFlt :: MaybeError VarVal
+testCastingFlt = run [Return (Cast (Literal (String "69.420")) TFlt)]

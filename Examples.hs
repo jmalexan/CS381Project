@@ -17,7 +17,8 @@ badFuncNoExist :: Prog
 badFuncNoExist = [Return (Function "test" [])]
 
 badOperTypes :: Prog
-badOperTypes = [Return (Operation Add (Literal (Int 3)) (Literal (Boolean False)))]
+badOperTypes =
+  [Return (Operation Add (Literal (Int 3)) (Literal (Boolean False)))]
 
 badCastType :: Prog
 badCastType = [Return (Cast (Literal (Int 3)) TIntList)]
@@ -29,7 +30,8 @@ badVarRef :: Prog
 badVarRef = [Return (Variable "test")]
 
 badElement :: Prog
-badElement = [Return (Element (Literal (IntList [3, 6, 9])) (Literal (Boolean False)))]
+badElement =
+  [Return (Element (Literal (IntList [3, 6, 9])) (Literal (Boolean False)))]
 
 badFuncRef :: Prog
 badFuncRef = [Return (Function "test" [])]
@@ -43,7 +45,8 @@ badFuncRedeclare =
 badFuncArgs :: Prog
 badFuncArgs =
   [ Def "test" (FuncDataCon [] [] TInt [Return (Literal (Int 3))])
-  , Return (Function "test" [(Literal (Int 3))])]
+  , Return (Function "test" [(Literal (Int 3))])
+  ]
 
 badIfCondition :: Prog
 badIfCondition = [If (Literal (Int 3)) [Return (Literal (Boolean True))]]
@@ -52,7 +55,8 @@ badWhileCondition :: Prog
 badWhileCondition = [While (Literal (Int 3)) [Return (Literal (Boolean True))]]
 
 badForEachIterator :: Prog
-badForEachIterator = [ForEach "test" (Literal (Int 3)) [Return (Literal (Boolean True))]]
+badForEachIterator =
+  [ForEach "test" (Literal (Int 3)) [Return (Literal (Boolean True))]]
 
 badInsertIndex :: Prog
 badInsertIndex =
@@ -68,17 +72,17 @@ badDeleteIndex =
 
 badVarRedeclaration :: Prog
 badVarRedeclaration =
-  [ Set "test" (Literal (Int 4))
-  , Set "test" (Literal (Boolean False))]
+  [Set "test" (Literal (Int 4)), Set "test" (Literal (Boolean False))]
 
 badFuncArgTypes :: Prog
 badFuncArgTypes =
   [ Def "test" (FuncDataCon ["thing"] [TInt] TInt [Return (Variable "thing")])
-  , Return (Function "test" [(Literal (Boolean False))])]
+  , Return (Function "test" [(Literal (Boolean False))])
+  ]
 
 badFuncReturnType :: Prog
-badFuncReturnType = 
-  [ Def "test" (FuncDataCon [] [] TBool [Return (Literal (Int 3))])]
+badFuncReturnType =
+  [Def "test" (FuncDataCon [] [] TBool [Return (Literal (Int 3))])]
 
 -- An example of a valid program. Run using `run goodProg`
 goodProg :: Prog
@@ -96,9 +100,12 @@ goodProg =
       ]
     )
   , Set "x" (Function "test" [Variable "x"])
-  , If (Operation Equal (Variable "x") (Literal (Int 381)))
-       [Set "x" (Literal (Boolean True))]
-  , Return (Variable "x")
+  , If (Not (Operation Equal (Variable "x") (Literal (Int 381))))
+       [Set "x" (Literal (Int 381))]
+  , Return
+    (Concat (Concat (Literal (String "CS ")) (Cast (Variable "x") TString))
+            (Literal (String " ROCKS!"))
+    )
   ]
 
 -- An example of an invalid program. Run using `run badProg`

@@ -484,8 +484,12 @@ compile p = case typecheck (prelude ++ p) of
 
 
 --------------------------------------------------------------
--- Beautifying errors
+-- Tracing errors
 --------------------------------------------------------------
+
+type CompileState = (CompVal, String, ErrorLine, FunctionName)
+
+type CompileStatus = [CompileState]
 
 -- Compile! uses syntactic sugar combined with logical parsing to find out if your program will work correctly!
 trace :: Prog -> String
