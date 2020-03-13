@@ -309,7 +309,7 @@ castValueToType (String x) (TBool) = case stringToBool x of
   Result i -> Result (Boolean i)
   Error  s -> Error s
 castValueToType (String x) (TString) = Result (String x) -- Always succeeds.
-castValueToType _ _ = Error "Invalid cast"
+castValueToType _          _         = Error "Invalid cast"
 
 
 
@@ -472,7 +472,7 @@ prog (ProgState vars funcs (x : xs)) = case cmd (ProgState vars funcs xs) x of
 
 -- Runs a program *WITHOUT* type checking by initializing an empty state and processing the program.
 run :: Prog -> MaybeError VarVal
-run p = prog (ProgState Map.empty Map.empty p) -- Adds prelude functions
+run p = prog (ProgState Map.empty Map.empty (prelude ++ p)) -- Adds prelude functions
 
 compile :: Prog -> IO ()
 compile p = case typecheck (prelude ++ p) of
@@ -489,35 +489,10 @@ compile p = case typecheck (prelude ++ p) of
 
 -- Compile! uses syntactic sugar combined with logical parsing to find out if your program will work correctly!
 trace :: Prog -> String
-trace p =
-  case
-      (  (findLine (ProgState Map.empty Map.empty p) (-1) ("Main"))
-      ++ (typeLine (ProgTypeState Map.empty Map.empty p)
-                   (-1)
-                   ("Main")
-         )
-      )
-    of
-      [] -> pretty
-        ([ ( Loaded
-           , "Use the function run to start the program"
-           , NoError
-           , "Main"
-           )
-         ]
-        )
-      _ -> pretty
-        (concatenator
-          (  (findLine (ProgState Map.empty Map.empty p)
-                       (-1)
-                       ("Main")
-             )
-          ++ (typeLine (ProgTypeState Map.empty Map.empty p)
-                       (-1)
-                       ("Main")
-             )
-          )
-        )
+trace p = case typeLine (ProgTypeState Map.empty Map.empty (p)) (-1) ("") of
+  [] -> pretty
+    (concatenator (findLine (ProgState Map.empty Map.empty (p)) (-1) ("")))
+  error -> pretty (concatenator error)
 
 -- Concatenator - Compiles the error codes into a compile status that we can pretty-fy
 concatenator :: [(Int, String, String)] -> CompileStatus
@@ -530,7 +505,9 @@ findLine :: State -> Int -> String -> [(Int, String, String)]
 findLine (ProgState _ _ []) _ _ = []
 findLine (ProgState vars funcs ((Def str (FuncDataCon v l rt f)) : xs)) c t = -- Special case pattern - if we define a neew function, prepare to check it
   case (cmd (ProgState vars funcs xs) (Def str (FuncDataCon v l rt f))) of
-    Error s -> [(c, s, t)] ++ findLine (ProgState vars funcs xs) (c + 1) t
+    Error s ->
+      [(c, ("Runtime error: " ++ s), t)]
+        ++ findLine (ProgState vars funcs xs) (c + 1) t
     Result ((ProgState a b z), Nothing) ->
       (findLine (newFuncState (ProgState Map.empty b f) v l) 1 str)
         ++ (findLine (ProgState a b z) (c + 1) t)
@@ -538,9 +515,11 @@ findLine (ProgState vars funcs ((Def str (FuncDataCon v l rt f)) : xs)) c t = --
     Result (_, Just _) -> []
 findLine (ProgState vars funcs (x : xs)) c t =
   case (cmd (ProgState vars funcs xs) x) of
-    Error s -> [(c, s, t)] ++ findLine (ProgState vars funcs xs) (c + 1) t
+    Error s ->
+      [(c, ("Runtime error: " ++ s), t)]
+        ++ findLine (ProgState vars funcs xs) (c + 1) t
     Result (newstate, Nothing) -> findLine newstate (c + 1) t
-    Result (_, Just _) -> []
+    Result (_       , Just _ ) -> []
 
 -- Make sure that the parameters have matching types for each parameter passed, otherwise would have unnasigned
 funcTypeAlign :: String -> [String] -> [Type] -> [(Int, String, String)]
@@ -584,74 +563,24 @@ newFuncState (ProgState types funcs prog) (s : ss) (t : ts) = case t of
 -- Use to locate type errors with the help of the type state checker
 typeLine :: TypeState -> Int -> String -> [(Int, String, String)]
 typeLine (ProgTypeState _ _ []) _ _ = []
-typeLine (ProgTypeState types funcs ((Def str fndat): cmds)) ind fname =
-  case (cmdType (ProgTypeState types funcs cmds) (Def str fndat)) of
+typeLine (ProgTypeState types funcs (cmd : cmds)) ind fname =
+  case (cmdType (ProgTypeState types funcs cmds) cmd) of
     Error s ->
-      [(ind, "RunTime Data Type Error: Function Definition", fname)]
-        ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
-    Result (newstate, Nothing) -> typeLine newstate (ind + 1) fname
-    Result (_       , Just x ) -> []
-typeLine (ProgTypeState types funcs ((Set str exp) : cmds)) ind fname =
-  case (cmdType (ProgTypeState types funcs cmds) (Set str exp)) of
-    Error s ->
-      [(ind, "RunTime Data Type Error: Variable Definition", fname)]
-        ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
-    Result (newstate, Nothing) -> typeLine newstate (ind + 1) fname
-    Result (_       , Just x ) -> []
-typeLine (ProgTypeState types funcs ((Insert str exp expt) : cmds)) ind fname =
-  case (cmdType (ProgTypeState types funcs cmds) (Insert str exp expt)) of
-    Error s ->
-      [(ind, "RunTime Data Type Error: Insertion in List", fname)]
-        ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
-    Result (newstate, Nothing) -> typeLine newstate (ind + 1) fname
-    Result (_       , Just x ) -> []
-typeLine (ProgTypeState types funcs ((Delete str exp) : cmds)) ind fname =
-  case (cmdType (ProgTypeState types funcs cmds) (Delete str exp)) of
-    Error s ->
-      [(ind, "RunTime Data Type Error: Deletion in List", fname)]
-        ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
-    Result (newstate, Nothing) -> typeLine newstate (ind + 1) fname
-    Result (_       , Just x ) -> []
-typeLine (ProgTypeState types funcs ((If exp ifprg) : cmds)) ind fname =
-  case (cmdType (ProgTypeState types funcs cmds) (If exp ifprg)) of
-    Error s ->
-      [(ind, "RunTime Data Type Error: If Statement", fname)]
-        ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
-    Result (newstate, Nothing) -> typeLine newstate (ind + 1) fname
-    Result (_       , Just x ) -> []
-typeLine (ProgTypeState types funcs ((While exp whprg) : cmds)) ind fname =
-  case (cmdType (ProgTypeState types funcs cmds) (While exp whprg)) of
-    Error s ->
-      [(ind, "RunTime Data Type Error: While Loop", fname)]
-        ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
-    Result (newstate, Nothing) -> typeLine newstate (ind + 1) fname
-    Result (_       , Just x ) -> []
-typeLine (ProgTypeState types funcs ((ForEach str exp feprg) : cmds)) ind fname =
-  case (cmdType (ProgTypeState types funcs cmds) (ForEach str exp feprg)) of
-    Error s ->
-      [(ind, "RunTime Data Type Error: For Each Statement", fname)]
-        ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
-    Result (newstate, Nothing) -> typeLine newstate (ind + 1) fname
-    Result (_       , Just x ) -> []
-typeLine (ProgTypeState types funcs ((Return exp) : cmds)) ind fname =
-  case (cmdType (ProgTypeState types funcs cmds) (Return exp)) of
-    Error s ->
-      [(ind, "RunTime Data Type Error: Return Type", fname)]
+      [(ind, "Type Error: " ++ s, fname)]
         ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
     Result (newstate, Nothing) -> typeLine newstate (ind + 1) fname
     Result (_       , Just x ) -> []
 
 -- Make it look nice and like a real readable compiler!
 pretty :: CompileStatus -> String
-pretty [] = "\n\n"
-pretty ((Loaded, s, _, f) : xs) =
-  "Program Loaded\n" ++ s ++ "\n" ++ f ++ " Function\n\n"
+pretty [] = ""
+pretty ((_, s, (Line i), "") : xs) =
+  s ++ "\nFound on line " ++ (show i) ++ " of program" ++ ".\n\n" ++ pretty xs
 pretty ((_, s, (Line i), f) : xs) =
-  "Error: "
-    ++ s
+  s
     ++ "\nFound on line "
     ++ (show i)
     ++ " of Function: "
     ++ f
-    ++ "\n\n"
+    ++ ".\n\n"
     ++ pretty xs
