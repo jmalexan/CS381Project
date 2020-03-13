@@ -216,10 +216,12 @@ cmdType (ProgTypeState vars funcs p) (Delete list index) =
 cmdType (ProgTypeState vars funcs p) (If condition block) = -- This case probably won't work, maybe prog is the wrong thing to call here.  possibly new function needed?  Issue here is that prog returns Error or a Type, and an if statement block doesn't necessarily return anything.
   case exprType (ProgTypeState vars funcs p) condition of
     Result TBool -> Result (ProgTypeState vars funcs (block ++ p), Nothing)
+    Result _ -> Error "Non boolean in if condition"
     Error  s     -> Error s
 cmdType (ProgTypeState vars funcs p) (While condition block) = -- Same as the above comment
   case exprType (ProgTypeState vars funcs p) condition of
     Result TBool -> Result (ProgTypeState vars funcs (block ++ p), Nothing)
+    Result _ -> Error "Non boolean in if condition"
     Error  s     -> Error s
 cmdType (ProgTypeState vars funcs p) (ForEach item list block) =
   case exprType (ProgTypeState vars funcs p) list of
@@ -231,7 +233,8 @@ cmdType (ProgTypeState vars funcs p) (ForEach item list block) =
       (ProgTypeState (Map.insert item TBool vars) funcs (block ++ p), Nothing)
     Result TString -> Result
       (ProgTypeState (Map.insert item TChar vars) funcs (block ++ p), Nothing)
-    _ -> Error "Cannot iterate over non list type"
+    Result _ -> Error "Cannot iterate over non list type"
+    Error s -> Error s
 cmdType (ProgTypeState vars funcs p) (Return expr1) =
   case exprType (ProgTypeState vars funcs p) expr1 of
     Result t -> Result (ProgTypeState vars funcs p, Just t)

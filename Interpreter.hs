@@ -309,6 +309,7 @@ castValueToType (String x) (TBool) = case stringToBool x of
   Result i -> Result (Boolean i)
   Error  s -> Error s
 castValueToType (String x) (TString) = Result (String x) -- Always succeeds.
+castValueToType _ _ = Error "Invalid cast"
 
 
 
@@ -411,7 +412,7 @@ cmd (ProgState vars funcs p) (Delete name index) =
         Result newList ->  -- The deletion was successful, and created a new list with the element deleted.
           Result (ProgState (Map.insert name newList vars) funcs p, Nothing)
         Error s -> Error s -- The deletion failed
-      (Result l, Result (_)) -> Error "Insert must be an Int."
+      (Result l, Result (_)) -> Error "Delete must be an Int."
       (Error  s, _         ) -> Error s
       (_       , Error s   ) -> Error s
 cmd (ProgState vars funcs p) (If condition block) =
