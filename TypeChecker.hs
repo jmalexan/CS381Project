@@ -118,23 +118,24 @@ exprType oldState (Element list index) =
     (Result TFltList , Result TInt) -> Result TFlt
     (Result TBoolList, Result TInt) -> Result TBool
     (Result TString  , Result TInt) -> Result TChar
-    (Result _, Result TInt) -> Error "Cannot get the element of a non-list type"
-    (_, Result _) -> Error "Index not an integer type"
-    (Error s, _)                               -> Error s
-    (_, Error s) -> Error s
+    (Result _, Result TInt) ->
+      Error "Cannot get the element of a non-list type"
+    (_      , Result _) -> Error "Index not an integer type"
+    (Error s, _       ) -> Error s
+    (_      , Error s ) -> Error s
 exprType oldState (Length list) = case exprType oldState list of
   Result x -> Result TInt
-  Error s        -> Error s
+  Error  s -> Error s
 exprType oldstate (Concat l1 l2) =
   case (exprType oldstate l1, exprType oldstate l2) of
-    (Result TIntList, Result TIntList) -> Result TIntList
-    (Result TFltList, Result TFltList) -> Result TFltList
+    (Result TIntList , Result TIntList ) -> Result TIntList
+    (Result TFltList , Result TFltList ) -> Result TFltList
     (Result TBoolList, Result TBoolList) -> Result TBoolList
-    (Result TString, Result TString) -> Result TString
+    (Result TString  , Result TString  ) -> Result TString
     (Result _, _) -> Error "First expression in concat not list type"
     (_, Result _) -> Error "Second expression in concat not list type"
-    (Error s, _) -> Error s
-    (_, Error s) -> Error s
+    (Error s         , _               ) -> Error s
+    (_               , Error s         ) -> Error s
 exprType oldstate (Cast expr newType) = case exprType oldstate expr of
   Result x -> castType x newType
   Error  s -> Error s
@@ -148,36 +149,39 @@ exprType (ProgTypeState vars funcs p) (Function name args) =
 
 cmdType :: TypeState -> Cmd -> MaybeError (TypeState, Maybe Type)
 cmdType (ProgTypeState vars funcs p) (Def name (FuncDataCon argnames argtypes returntype fp))
-  = case
-      buildFuncTypeState (ProgTypeState vars funcs p)
-                         argnames
-                         argtypes
-                         Map.empty
-                         funcs
-                         fp
-    of
-      Result newts -> case progType newts of
-        Result t
-          | t == returntype -> Result
-            ( ProgTypeState
-              vars
-              (Map.insert name
-                          (FuncDataCon argnames argtypes returntype fp)
-                          funcs
-              )
-              p
-            , Nothing
-            )
-          | otherwise -> Error "Function does not return declared return type"
-        Error s -> Error s
-      Error s -> Error s
+  = case Map.lookup name funcs of
+    Nothing ->
+      case
+          buildFuncTypeState (ProgTypeState vars funcs p)
+                             argnames
+                             argtypes
+                             Map.empty
+                             funcs
+                             fp
+        of
+          Result newts -> case progType newts of
+            Result t
+              | t == returntype -> Result
+                ( ProgTypeState
+                  vars
+                  (Map.insert name
+                              (FuncDataCon argnames argtypes returntype fp)
+                              funcs
+                  )
+                  p
+                , Nothing
+                )
+              | otherwise -> Error
+                "Function does not return declared return type"
+            Error s -> Error s
+          Error s -> Error s
+    Just _ -> Error "Function already declared"
 
 cmdType (ProgTypeState vars funcs p) (Set name val) =
   case exprType (ProgTypeState vars funcs p) val of
     Result t -> case Map.lookup name vars of
-      Just u
-        | t == u -> Result (ProgTypeState vars funcs p, Nothing)
-        | otherwise -> Error "Invalid type assignemnt"
+      Just u | t == u    -> Result (ProgTypeState vars funcs p, Nothing)
+             | otherwise -> Error "Invalid type assignemnt"
       Nothing ->
         Result (ProgTypeState (Map.insert name t vars) funcs p, Nothing)
     Error s -> Error s
@@ -196,7 +200,8 @@ cmdType (ProgTypeState vars funcs p) (Insert list index val) =
         Result (ProgTypeState vars funcs p, Nothing)
       (Just TString, Result TInt, Result TChar) ->
         Result (ProgTypeState vars funcs p, Nothing)
-      (Just _, Result TInt, Result _) -> Error "Invalid list or value in insert function"
+      (Just _, Result TInt, Result _) ->
+        Error "Invalid list or value in insert function"
       (Just _, Result _, Result _) -> Error "Index not an integer type"
 cmdType (ProgTypeState vars funcs p) (Delete list index) =
   case (Map.lookup list vars, exprType (ProgTypeState vars funcs p) index) of
@@ -212,11 +217,11 @@ cmdType (ProgTypeState vars funcs p) (Delete list index) =
 cmdType (ProgTypeState vars funcs p) (If condition block) = -- This case probably won't work, maybe prog is the wrong thing to call here.  possibly new function needed?  Issue here is that prog returns Error or a Type, and an if statement block doesn't necessarily return anything.
   case exprType (ProgTypeState vars funcs p) condition of
     Result TBool -> Result (ProgTypeState vars funcs (block ++ p), Nothing)
-    Error  s    -> Error s
+    Error  s     -> Error s
 cmdType (ProgTypeState vars funcs p) (While condition block) = -- Same as the above comment
   case exprType (ProgTypeState vars funcs p) condition of
     Result TBool -> Result (ProgTypeState vars funcs (block ++ p), Nothing)
-    Error  s    -> Error s
+    Error  s     -> Error s
 cmdType (ProgTypeState vars funcs p) (ForEach item list block) =
   case exprType (ProgTypeState vars funcs p) list of
     Result TIntList -> Result
@@ -230,7 +235,7 @@ cmdType (ProgTypeState vars funcs p) (ForEach item list block) =
     _ -> Error "Cannot iterate over non list type"
 cmdType (ProgTypeState vars funcs p) (Return expr1) =
   case exprType (ProgTypeState vars funcs p) expr1 of
-    Result t  -> Result (ProgTypeState vars funcs p, Just t)
+    Result t -> Result (ProgTypeState vars funcs p, Just t)
     Error  s -> Error s
 
 

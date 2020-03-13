@@ -379,8 +379,9 @@ exprEval (ProgState vars funcs p) (Function name args) =
 
 -- Evaluate currently executing command. Loops and Conditionals are handled by injecting commands onto the current state's program.
 cmd :: State -> Cmd -> MaybeError (State, Maybe VarVal)
-cmd (ProgState vars funcs p) (Def name funcdata) =
-  Result (ProgState vars (Map.insert name funcdata funcs) p, Nothing)
+cmd (ProgState vars funcs p) (Def name funcdata) = case Map.lookup name funcs of
+  Nothing -> Result (ProgState vars (Map.insert name funcdata funcs) p, Nothing)
+  Just _ -> Error "Function already declared"
 cmd (ProgState vars funcs p) (Set name val) =
   case exprEval (ProgState vars funcs p) val of
     Result v -> Result (ProgState (Map.insert name v vars) funcs p, Nothing)
