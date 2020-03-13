@@ -1,180 +1,25 @@
-module Language where
--- Description: Final Project for CS 381 Winter 2020
+module Interpreter where
+-- Description: Executes (evaluates) programs in our language.
 -- Authors:
 --  > Faaiq Waqar (waqarf)
 --  > Jonathan Alexander (alexajon)
 --  > Julian Fortune (fortunej)
 
+import           CoreLanguage
+import           StandardLibrary
+import           TypeChecker
+
 import qualified Data.Map.Strict               as Map
 import           Data.Maybe
 import           Data.Typeable
 import           System.IO
-import           Prelude                 hiding ( EQ
-                                                , LT
-                                                , List
-                                                , and
+import           Prelude                 hiding ( and
                                                 , or
                                                 , subtract
                                                 )
 import           Data.Char                      ( ord
                                                 , chr
                                                 )
-
-
---------------------------------------------------------------
--- Core Language
---------------------------------------------------------------
-
------ Extension: Lists inside of lists -----
--- type List a = [a]
-
--- data List = SubList List
---           | IntList [Int]
---           | FloatList [Float]
---           | BoolList [Bool]
---     deriving Show
---------------------------------------------
-
--- A literal value that can be stored in a variable or passed as a parameter.
-data VarVal = Int Int
-            | Float Float
-            | Boolean Bool
-            | Character Char
-            | IntList [Int]
-            | FloatList [Float]
-            | BoolList [Bool]
-            | String [Char]
-    deriving Show
-
--- ??
-data Type = TInt
-          | TFlt
-          | TBool
-          | TChar
-          | TIntList
-          | TFltList
-          | TBoolList
-          | TString
-    deriving (Show, Prelude.Eq)
-
--- ??
-data CompVal = Loaded | Syntaxerror | Datatypeerror
-    deriving Show
-
--- Maps variable names to the stored value.
-type VarAssociation = Map.Map String VarVal
-
--- The data associated with a function.
-data FuncData = FuncDataCon [String] [Type] Type Prog
-  deriving Show
-
--- Maps function names to the desired function.
-type FuncAssociation = Map.Map String FuncData
-
--- Numeric (only works for Floats and Ints) operations
-data Operation = Add | Sub | Mul | Div | Equal | Less | And
-    deriving Show
-
--- Expressions evaluate to VarVal's.
-data Expr = Operation Operation Expr Expr -- Applies the operation to the 2 expressions to produce a VarVal.
-          | Not Expr -- Literal value. Negates Bool values.
-          | Variable String -- References a variable by the name (String). Evaluates to the value of the variable.
-          | Literal VarVal -- Literal value.
-          | Element String Expr  -- Fetch the value of a specific element in a list ex: `a = b + myList[3]`
-          | Length String -- Get the length of a list
-          | Concat Expr Expr -- Concatenate two lists
-          | Cast Expr Type-- Cast from a VarVal of one type to another (specified by Type).
-          | Function String [Expr] -- Calls a function.
-  deriving Show
-
--- Cmd's modify state and may modify the program flow.
-data Cmd = Def String FuncData -- Define a function with a name specified by String, with parameters FuncData ex: `a = 5`.
-         | Set String Expr -- Assign the VarVal specified by Expr to the variable named by the String ex: `a = 5`.
-         | Insert String Expr Expr -- Assign a value to a specific element in a list ex: `myList[3] = 4`. (params: list name, index, value)
-         | Delete String Expr -- Deletes the element in list variable (w/ name `String`) at index (`Expr`). (params: list name, index)
-         | If Expr Prog
-         | While Expr Prog
-         | ForEach String Expr Prog -- Iterates and performs block of code for each item in a list. Ex: For <var> in <list> { <prog> }
-         | Return Expr
-  deriving Show
-
-data MaybeError x = Result x
-                  | Error String
-  deriving Show
-
-data ErrorLine = Line Int
-                | NoError
-  deriving Show
-
--- A program is composed a list of commands.
-type Prog = [Cmd]
-
-type FunctionName = String
-
-type CompileState = (CompVal, String, ErrorLine, FunctionName)
-
-type CompileStatus = [CompileState]
-
--- A program state includes the variables, functions, and the program itself.
-data State = ProgState VarAssociation FuncAssociation Prog
-  deriving Show
-
---------------------------------------------------------------
--- LanguageExtension (Syntactic sugar)
---------------------------------------------------------------
-
-or :: Expr -> Expr -> Expr
-or left right = Not (Operation And (Not left) (Not right)) -- Demorgan's law babyyy :)
-
-lessOrEqual :: Expr -> Expr -> Expr
-lessOrEqual left right =
-  or (Operation Less (left) (right)) (Operation Equal (left) (right))
-
-greater :: Expr -> Expr -> Expr
-greater left right = Not (lessOrEqual left right)
-
-greaterOrEqual :: Expr -> Expr -> Expr
-greaterOrEqual left right = Not (Operation Less left right)
-
--- i.e.: list[index] = value
-assign :: String -> Expr -> Expr -> Cmd
-assign list index value =
-  If (Literal (Boolean True)) [Delete list index, Insert list index value]
-
-
-
---------------------------------------------------------------
--- Prelude (Built-in Library)
---------------------------------------------------------------
-
-prelude :: Prog
-prelude =
-  [ Def -- Append: Takes list and element and returns list with element appended. (This will break when typeSystem is implemented)
-    "append"
-    (FuncDataCon
-      ["list", "element"] [TIntList, TInt] TIntList
-      [ Set "index" (Length "list") -- Get length of list
-      , Insert "list" (Variable "index") (Variable "element")
-      , Return (Variable "list")
-      ]
-    )
-  , Def -- Range: Takes and int and generates Int list [0...input].
-    "range"
-    (FuncDataCon
-      ["count"] [TInt] TIntList
-      [ Set "index" (Literal (Int 0)) -- Get length of list
-      , Set "list"  (Literal (IntList []))
-      , While
-        (Operation Less (Variable "index") (Variable "count"))
-        [ Set "list"  (Function "append" [Variable "list", Variable "index"]) -- Append
-        , Set "index" (Operation Add (Variable "index") (Literal (Int 1))) -- Increment index
-        ]
-      , Return (Variable "list")
-      ]
-    )
-  ]
-
-
 
 --------------------------------------------------------------
  -- Functions implementation
@@ -465,6 +310,8 @@ castValueToType (String x) (TBool) = case stringToBool x of
   Error  s -> Error s
 castValueToType (String x) (TString) = Result (String x) -- Always succeeds.
 
+
+
 --------------------------------------------------------------
 -- Compile (Evaluation)
 --------------------------------------------------------------
@@ -624,3 +471,134 @@ prog (ProgState vars funcs (x : xs)) = case cmd (ProgState vars funcs xs) x of
 run :: Prog -> MaybeError VarVal
 run p = prog (ProgState Map.empty Map.empty (prelude ++ p)) -- Adds prelude functions
 
+compile :: Prog -> IO ()
+compile p = case typecheck (prelude ++ p) of
+  Result _ -> case run (prelude ++ p) of
+    Result a -> putStrLn (show a)
+    Error  s -> putStrLn ("Runtime error:\n\n" ++ s)
+  Error s -> putStrLn ("Compile-time error:\n\n" ++ s)
+
+
+--------------------------------------------------------------
+-- Beautifying errors
+--------------------------------------------------------------
+
+-- Compile! uses syntactic sugar combined with logical parsing to find out if your program will work correctly!
+-- compile :: Prog -> String
+-- compile p =
+--   case
+--       (  (findLine (ProgState Map.empty Map.empty (prelude ++ p)) (-1) ("Main"))
+--       ++ (typeLine (ProgTypeState Map.empty Map.empty (prelude ++ p))
+--                    (-1)
+--                    ("Main")
+--          )
+--       )
+--     of
+--       [] -> pretty
+--         ([ ( Loaded
+--            , "Use the function run to start the program"
+--            , NoError
+--            , "Main"
+--            )
+--          ]
+--         )
+--       _ -> pretty
+--         (concatenator
+--           (  (findLine (ProgState Map.empty Map.empty (prelude ++ p))
+--                        (-1)
+--                        ("Main")
+--              )
+--           ++ (typeLine (ProgTypeState Map.empty Map.empty (prelude ++ p))
+--                        (-1)
+--                        ("Main")
+--              )
+--           )
+--         )
+
+-- Concatenator - Compiles the error codes into a compile status that we can pretty-fy
+concatenator :: [(Int, String, String)] -> CompileStatus
+concatenator [] = []
+concatenator ((c, s, f) : xs) =
+  [(Syntaxerror, s, Line c, f)] ++ concatenator xs
+
+-- -- Use this to itereatively find a line of a program in which the error is located, and what function
+-- findLine :: State -> Int -> String -> [(Int, String, String)]
+-- findLine (ProgState _ _ []) _ _ = []
+-- findLine (ProgState vars funcs ((Def str (FuncDataCon v l rt f)) : xs)) c t = -- Special case pattern - if we define a neew function, prepare to check it
+--   case (cmd (ProgState vars funcs xs) (Def str (FuncDataCon v l rt f))) of
+--     Error s -> [(c, s, t)] ++ findLine (ProgState vars funcs xs) (c + 1) t
+--     Result ((ProgState a b z), Error "") ->
+--       (findLine (newFuncState (ProgState Map.empty b f) v l) 1 str)
+--         ++ (findLine (ProgState a b z) (c + 1) t)
+--         ++ (funcTypeAlign str v l)
+--     Result (_, Result _) -> []
+-- findLine (ProgState vars funcs (x : xs)) c t =
+--   case (cmd (ProgState vars funcs xs) x) of
+--     Error s -> [(c, s, t)] ++ findLine (ProgState vars funcs xs) (c + 1) t
+--     Result (newstate, Error "") -> findLine newstate (c + 1) t
+--     Result (_, Result _) -> []
+
+-- Make sure that the parameters have matching types for each parameter passed, otherwise would have unnasigned
+funcTypeAlign :: String -> [String] -> [Type] -> [(Int, String, String)]
+funcTypeAlign name [] [] = []
+funcTypeAlign name (s : ss) [] =
+  [(0, "Parameters passed have inconsistent matching to types", name)]
+funcTypeAlign name [] (t : ts) =
+  [(0, "Parameters passed have inconsistent matching to types", name)]
+funcTypeAlign name (s : ss) (t : ts) = funcTypeAlign name ss ts
+
+-- Use this to build a working state for functions to be checked for errors based on type
+newFuncState :: State -> [String] -> [Type] -> State
+newFuncState curState                     []       []       = curState
+newFuncState curState                     []       (t : ts) = curState
+newFuncState curState                     (s : ss) []       = curState
+newFuncState (ProgState types funcs prog) (s : ss) (t : ts) = case t of
+  TInt ->
+    newFuncState (ProgState (Map.insert s (Int 5) types) funcs prog) ss ts
+  TFlt ->
+    newFuncState (ProgState (Map.insert s (Float 5.5) types) funcs prog) ss ts
+  TBool -> newFuncState
+    (ProgState (Map.insert s (Boolean True) types) funcs prog)
+    ss
+    ts
+  TIntList -> newFuncState
+    (ProgState (Map.insert s (IntList [1, 2, 3, 4, 5]) types) funcs prog)
+    ss
+    ts
+  TFltList -> newFuncState
+    (ProgState (Map.insert s (FloatList [1.5, 2.5, 3.5, 4.5, 5.5]) types)
+               funcs
+               prog
+    )
+    ss
+    ts
+  TBoolList -> newFuncState
+    (ProgState (Map.insert s (BoolList [True, False, True]) types) funcs prog)
+    ss
+    ts
+
+-- Use to locate type errors with thte help of the type state checker
+typeLine :: TypeState -> Int -> String -> [(Int, String, String)]
+typeLine (ProgTypeState _ _ []) _ _ = []
+typeLine (ProgTypeState types funcs (cmd : cmds)) ind fname =
+  case (cmdType (ProgTypeState types funcs cmds) cmd) of
+    Error "" ->
+      [(ind, "RunTime Data Type Error Found", fname)]
+        ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
+    Result (newstate, Error "") -> typeLine newstate (ind + 1) fname
+    Result (_       , Result x) -> []
+
+-- Make it look nice and like a real readable compiler!
+pretty :: CompileStatus -> String
+pretty [] = "\n\n"
+pretty ((Loaded, s, _, f) : xs) =
+  "Program Loaded\n" ++ s ++ "\n" ++ f ++ " Function\n\n"
+pretty ((_, s, (Line i), f) : xs) =
+  "Error: "
+    ++ s
+    ++ "\nFound on line "
+    ++ (show i)
+    ++ " of Function: "
+    ++ f
+    ++ "\n\n"
+    ++ pretty xs

@@ -19,19 +19,14 @@ List/array data type and operations : There will be lists supported, based on th
 Static type system : A user attempting to write and use code in the programming language we have created would be using the GHCI to operate the language, the compiler is called before use of a function, or can be called to in order to check the correctness of the program, this would return one of certain types of error indicators ideally in a specific Expression as defined in the syntax. This will give users an idea of the correctness of their programs. The function is called ‘compile’ and takes in a ‘prog’ or string of commands
 
 ## Execution Instructions
-1. Open Via GHCI
-2. Load the file 'Program.hs'
-3. Testing Good Input: `*Project> prog mainState`
-4. Testing Bad Input: `*Project> prog badState`
+1. Open via GHCI 'Examples.hs'
+1. Testing Good Input: `*Examples> compile quickSort`
+1. Testing Bad Input: `*Examples> compile badProg`
 
 ## Todo:
-- [!important] Develop Static Type system.
 - @Julian Change list expressions to use Expr.
 - Add context to errors using the fact we capture the Error text everywhere.
 - Expand unit tests to cover more of the language.
-- 💡 Spike: Research `do` notation and monads.
-- 💡 Spike: Hinley Milner type checking
-- 🤸🏼‍♀️ Stretch: Lists within lists.
 
 ## Done
 - @Julian figure out if list functions have correct constructor parameter types (~String vs.~ Expr).
