@@ -331,9 +331,9 @@ exprEval (ProgState vars _ _) (Variable name) = case Map.lookup name vars of
   Just val -> Result val
   _        -> Error ("Variable '" ++ name ++ "' reference before assignment.")
 exprEval _ (Literal val) = Result val
-exprEval (ProgState vars funcs p) (Element name index) =
+exprEval (ProgState vars funcs p) (Element list index) =
   case
-      ( exprEval (ProgState vars funcs p) (Variable name) -- Look up list
+      ( exprEval (ProgState vars funcs p) list -- Look up list
       , exprEval (ProgState vars funcs p) index
       )
     of
@@ -342,12 +342,11 @@ exprEval (ProgState vars funcs p) (Element name index) =
         Error  s     -> Error s
       (Result list, Result (_)) -> Error "Index must be an Int."
       (_          , Error s   ) -> Error s
-exprEval (ProgState vars funcs p) (Length name) =
-  case (exprEval (ProgState vars funcs p) (Variable name)) of -- Look up list
-    (Result list) -> case getLength list of
-      Result value -> Result value
-      Error  s     -> Error s
-    (Error s) -> Error s
+exprEval oldState (Length list) = case (exprEval oldState list) of -- Look up list
+  (Result list) -> case getLength list of
+    Result value -> Result value
+    Error  s     -> Error s
+  (Error s) -> Error s
 exprEval (ProgState vars funcs p) (Concat left right) =
   case
       ( exprEval (ProgState vars funcs p) left
@@ -586,8 +585,8 @@ typeLine (ProgTypeState types funcs (cmd : cmds)) ind fname =
     Error s ->
       [(ind, "RunTime Data Type Error Found", fname)]
         ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
-    Result (newstate, Error "") -> typeLine newstate (ind + 1) fname
-    Result (_       , Result x) -> []
+    Result (newstate, Nothing) -> typeLine newstate (ind + 1) fname
+    Result (_       , Just x ) -> []
 
 -- Make it look nice and like a real readable compiler!
 pretty :: CompileStatus -> String

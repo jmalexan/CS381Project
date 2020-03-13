@@ -56,8 +56,8 @@ data Expr = Operation Operation Expr Expr -- Applies the operation to the 2 expr
           | Not Expr -- Literal value. Negates Bool values.
           | Variable String -- References a variable by the name (String). Evaluates to the value of the variable.
           | Literal VarVal -- Literal value.
-          | Element String Expr  -- Fetch the value of a specific element in a list ex: `a = b + myList[3]`
-          | Length String -- Get the length of a list
+          | Element Expr Expr  -- Fetch the value of a specific element in a list ex: `a = b + myList[3]`
+          | Length Expr -- Get the length of a list
           | Concat Expr Expr -- Concatenate two lists
           | Cast Expr Type-- Cast from a VarVal of one type to another (specified by Type).
           | Function String [Expr] -- Calls a function.

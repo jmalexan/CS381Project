@@ -23,7 +23,7 @@ prelude =
             ["list", "element"]
             [TIntList, TInt]
             TIntList
-            [ Set "index" (Length "list") -- Get length of list
+            [ Set "index" (Length (Variable "list")) -- Get length of list
             , Insert "list" (Variable "index") (Variable "element")
             , Return (Variable "list")
             ]

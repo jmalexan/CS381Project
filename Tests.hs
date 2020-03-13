@@ -1,6 +1,8 @@
 module Doctest where
 
-import           Language
+import           CoreLanguage -- Allows writing programs
+import           Interpreter -- Allows running programs `compile <name>`
+
 import           Prelude                 hiding ( and
                                                 , or
                                                 , subtract
@@ -51,7 +53,7 @@ testListInsertion = run
 testListAccess :: MaybeError VarVal
 testListAccess = run
     [ Set "myList" (Literal (IntList [1, 2, 3]))
-    , Return (Element "myList" (Literal (Int 1)))
+    , Return (Element (Variable "myList") (Literal (Int 1)))
     ]
 
 -- | Testing the list deletion
@@ -85,7 +87,9 @@ testListIndexing = run
 --
 testListLength :: MaybeError VarVal
 testListLength = run
-    [Set "myList" (Literal (IntList [0, 1, 2, 3])), Return (Length "myList")]
+    [ Set "myList" (Literal (IntList [0, 1, 2, 3]))
+    , Return (Length (Variable "myList"))
+    ]
 
 -- | Testing built-in append
 --
@@ -139,7 +143,7 @@ testStringInsertion = run
 testStringAccess :: MaybeError VarVal
 testStringAccess = run
     [ Set "myString" (Literal (String "Hello, world"))
-    , Return (Element "myString" (Literal (Int 1)))
+    , Return (Element (Variable "myString") (Literal (Int 1)))
     ]
 
 -- | Testing the string deletion
@@ -174,12 +178,12 @@ testStringIndexing = run
 testStringLength :: MaybeError VarVal
 testStringLength = run
     [ Set "myString" (Literal (String "Hello, world"))
-    , Return (Length "myString")
+    , Return (Length (Variable "myString"))
     ]
 
 -- | Testing built-in append
 --
---   >>> testStringLength
+--   >>> testStringAppend
 --   Result (String "Hello, world!")
 --
 testStringAppend :: MaybeError VarVal

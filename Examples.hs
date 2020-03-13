@@ -90,21 +90,27 @@ quickSort =
       ["list"]
       [TIntList]
       TIntList
-      [ If (Operation Equal (Length "list") (Literal (Int 0))) -- Check base cases
+      [ If (Operation Equal (Length (Variable "list")) (Literal (Int 0))) -- Check base cases
            [Return (Variable "list")]
       , If
-        (greater (Length "list") (Literal (Int 0)))
-        [ Set "pivot" (Operation Div (Length "list") (Literal (Int 2))) -- Pick pivot as middle (uses integer division so pivot is int)
+        (greater (Length (Variable "list")) (Literal (Int 0)))
+        [ Set "pivot"
+              (Operation Div (Length (Variable "list")) (Literal (Int 2))) -- Pick pivot as middle (uses integer division so pivot is int)
         , Set "left"  (Literal (IntList []))
         , Set "right" (Literal (IntList []))
         , ForEach
           "x"
           (Variable "list")
           [ If
-            (Operation Less (Variable "x") (Element "list" (Variable "pivot"))) -- x < input[pivot]
+            (Operation Less
+                       (Variable "x")
+                       (Element (Variable "list") (Variable "pivot"))
+            ) -- x < input[pivot]
             [Set "left" (Function "append" [Variable "left", Variable "x"])]
           , If
-            (greater (Variable "x") (Element "list" (Variable "pivot"))) -- x >= input[pivot]
+            (greater (Variable "x")
+                     (Element (Variable "list") (Variable "pivot"))
+            ) -- x >= input[pivot]
             [Set "right" (Function "append" [Variable "right", Variable "x"])]
           ]
         , Set "sortedLeft"  (Function "quickSort" [Variable "left"])
@@ -113,7 +119,9 @@ quickSort =
           (Concat
             (Function
               "append"
-              [Variable "sortedLeft", Element "list" (Variable "pivot")]
+              [ Variable "sortedLeft"
+              , Element (Variable "list") (Variable "pivot")
+              ]
             )
             (Variable "sortedRight")
           ) -- append(sortedLeft, pivot]) ++ sortedRight
