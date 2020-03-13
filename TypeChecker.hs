@@ -139,8 +139,8 @@ cmdType (ProgTypeState vars funcs p) (Def name (FuncDataCon argnames argtypes re
             , Error ""
             )
           | otherwise -> Error ""
-        Error "" -> Error ""
-      Error "" -> Error ""
+        Error s -> Error s
+      Error s -> Error s
 
 cmdType (ProgTypeState vars funcs p) (Set name val) =
   case exprType (ProgTypeState vars funcs p) val of
@@ -150,7 +150,7 @@ cmdType (ProgTypeState vars funcs p) (Set name val) =
         False -> Error ""
       Nothing ->
         Result (ProgTypeState (Map.insert name t vars) funcs p, Error "")
-    Error "" -> Error ""
+    Error s -> Error s
 cmdType (ProgTypeState vars funcs p) (Insert list index val) =
   case
       ( Map.lookup list vars
@@ -205,7 +205,7 @@ progType (ProgTypeState vars funcs (x : xs)) =
   case cmdType (ProgTypeState vars funcs xs) x of
     Result (newstate, Error "") -> progType newstate
     Result (_       , Result x) -> Result x
-    Error  ""                   -> Error ""
+    Error  s                    -> Error s
 
 typecheck :: Prog -> MaybeError Type
 typecheck p = progType (ProgTypeState Map.empty Map.empty p) -- Adds prelude functions
