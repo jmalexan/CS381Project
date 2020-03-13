@@ -91,18 +91,20 @@ castType :: Type -> Type -> MaybeError Type
 castType a b = case Map.lookup a legalCastMap of
   Just legalCasts -> case List.elemIndex b legalCasts of
     Just _  -> Result b
-    Nothing -> Error "Ca"
-  Nothing -> Error "Ca"
+    Nothing -> Error ("Cannot cast " ++ show a ++ " to " ++ show b)
+  Nothing -> Error ("Cannot cast " ++ show a ++ " to any types")
 
 exprType :: TypeState -> Expr -> MaybeError Type
 exprType oldstate (Operation oper expr1 expr2) =
   case (exprType oldstate expr1, exprType oldstate expr2) of
     (Result x, Result y) -> operationType oper x y
-    _                    -> Error ""
+    (Error  s, _       ) -> Error s
+    (_       , Error s ) -> Error s
 exprType oldstate (Not expr) = exprType oldstate expr
 exprType (ProgTypeState vars _ _) (Variable name) =
   case Map.lookup name vars of
-    Just a -> Result a
+    Just a  -> Result a
+    Nothing -> Error ("Variable '" ++ name ++ "' reference before assignment.")
 exprType _ (Literal (Int       _)) = Result TInt
 exprType _ (Literal (Float     _)) = Result TFlt
 exprType _ (Literal (Boolean   _)) = Result TBool
@@ -116,17 +118,23 @@ exprType oldState (Element list index) =
     (Result TFltList , Result TInt) -> Result TFlt
     (Result TBoolList, Result TInt) -> Result TBool
     (Result TString  , Result TInt) -> Result TChar
-    _                               -> Error ""
+    (Result _, Result TInt) -> Error "Cannot get the element of a non-list type"
+    (_, Result _) -> Error "Index not an integer type"
+    (Error s, _)                               -> Error s
+    (_, Error s) -> Error s
 exprType oldState (Length list) = case exprType oldState list of
   Result x -> Result TInt
-  _        -> Error ""
+  Error s        -> Error s
 exprType oldstate (Concat l1 l2) =
   case (exprType oldstate l1, exprType oldstate l2) of
     (Result TIntList, Result TIntList) -> Result TIntList
     (Result TFltList, Result TFltList) -> Result TFltList
     (Result TBoolList, Result TBoolList) -> Result TBoolList
     (Result TString, Result TString) -> Result TString
-    _ -> Error ""
+    (Result _, _) -> Error "First expression in concat not list type"
+    (_, Result _) -> Error "Second expression in concat not list type"
+    (Error s, _) -> Error s
+    (_, Error s) -> Error s
 exprType oldstate (Cast expr newType) = case exprType oldstate expr of
   Result x -> castType x newType
   Error  s -> Error s
@@ -135,8 +143,8 @@ exprType (ProgTypeState vars funcs p) (Function name args) =
     Just (FuncDataCon argnames argtypes returntype fprog) ->
       case checkFuncArgsType (ProgTypeState vars funcs p) args argtypes of
         True  -> Result returntype
-        False -> Error ""
-    _ -> Error ""
+        False -> Error "Invalid argument types for function call"
+    _ -> Error "No such function"
 
 cmdType :: TypeState -> Cmd -> MaybeError (TypeState, Maybe Type)
 cmdType (ProgTypeState vars funcs p) (Def name (FuncDataCon argnames argtypes returntype fp))
@@ -160,16 +168,16 @@ cmdType (ProgTypeState vars funcs p) (Def name (FuncDataCon argnames argtypes re
               p
             , Nothing
             )
-          | otherwise -> Error ""
+          | otherwise -> Error "Function does not return declared return type"
         Error s -> Error s
       Error s -> Error s
 
 cmdType (ProgTypeState vars funcs p) (Set name val) =
   case exprType (ProgTypeState vars funcs p) val of
     Result t -> case Map.lookup name vars of
-      Just u -> case t == u of
-        True  -> Result (ProgTypeState vars funcs p, Nothing)
-        False -> Error ""
+      Just u
+        | t == u -> Result (ProgTypeState vars funcs p, Nothing)
+        | otherwise -> Error "Invalid type assignemnt"
       Nothing ->
         Result (ProgTypeState (Map.insert name t vars) funcs p, Nothing)
     Error s -> Error s
@@ -188,7 +196,8 @@ cmdType (ProgTypeState vars funcs p) (Insert list index val) =
         Result (ProgTypeState vars funcs p, Nothing)
       (Just TString, Result TInt, Result TChar) ->
         Result (ProgTypeState vars funcs p, Nothing)
-      _ -> Error ""
+      (Just _, Result TInt, Result _) -> Error "Invalid list or value in insert function"
+      (Just _, Result _, Result _) -> Error "Index not an integer type"
 cmdType (ProgTypeState vars funcs p) (Delete list index) =
   case (Map.lookup list vars, exprType (ProgTypeState vars funcs p) index) of
     (Just TIntList, Result TInt) ->
@@ -203,11 +212,11 @@ cmdType (ProgTypeState vars funcs p) (Delete list index) =
 cmdType (ProgTypeState vars funcs p) (If condition block) = -- This case probably won't work, maybe prog is the wrong thing to call here.  possibly new function needed?  Issue here is that prog returns Error or a Type, and an if statement block doesn't necessarily return anything.
   case exprType (ProgTypeState vars funcs p) condition of
     Result TBool -> Result (ProgTypeState vars funcs (block ++ p), Nothing)
-    Error  ""    -> Error ""
+    Error  s    -> Error s
 cmdType (ProgTypeState vars funcs p) (While condition block) = -- Same as the above comment
   case exprType (ProgTypeState vars funcs p) condition of
     Result TBool -> Result (ProgTypeState vars funcs (block ++ p), Nothing)
-    Error  ""    -> Error ""
+    Error  s    -> Error s
 cmdType (ProgTypeState vars funcs p) (ForEach item list block) =
   case exprType (ProgTypeState vars funcs p) list of
     Result TIntList -> Result
@@ -218,11 +227,11 @@ cmdType (ProgTypeState vars funcs p) (ForEach item list block) =
       (ProgTypeState (Map.insert item TBool vars) funcs (block ++ p), Nothing)
     Result TString -> Result
       (ProgTypeState (Map.insert item TChar vars) funcs (block ++ p), Nothing)
-    _ -> Error ""
+    _ -> Error "Cannot iterate over non list type"
 cmdType (ProgTypeState vars funcs p) (Return expr1) =
   case exprType (ProgTypeState vars funcs p) expr1 of
     Result t  -> Result (ProgTypeState vars funcs p, Just t)
-    Error  "" -> Error ""
+    Error  s -> Error s
 
 
 progType :: TypeState -> MaybeError Type
