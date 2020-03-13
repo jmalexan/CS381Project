@@ -23,7 +23,7 @@ badCastType :: Prog
 badCastType = [Return (Cast (Literal (Int 3)) TIntList)]
 
 badCastValue :: Prog
-badCastValue = [Return (Cast (Literal (String "f")) TBool)]
+badCastValue = [Return (Cast (Literal (String "z")) TBool)]
 
 badVarRef :: Prog
 badVarRef = [Return (Variable "test")]
