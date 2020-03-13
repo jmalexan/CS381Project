@@ -25,7 +25,8 @@ Static type system : A user attempting to write and use code in the programming 
 
 ## Todo:
 - @Julian Change list expressions to use Expr.
-- Add context to errors using the fact we capture the Error text everywhere.
+- @Jonathan Add explanations to type errors.
+- @Faaiq & Jonathan Add context to errors using the fact we capture the Error text everywhere.
 - Expand unit tests to cover more of the language.
 
 ## Done

@@ -31,7 +31,7 @@ data Type = TInt
           | TFltList
           | TBoolList
           | TString
-    deriving (Show, Prelude.Eq)
+    deriving (Show, Prelude.Eq, Ord)
 
 -- ??
 data CompVal = Loaded | Syntaxerror | Datatypeerror
@@ -105,7 +105,7 @@ or left right = Not (Operation And (Not left) (Not right)) -- Demorgan's law bab
 
 lessOrEqual :: Expr -> Expr -> Expr
 lessOrEqual left right =
-    or (Operation Less (left) (right)) (Operation Equal (left) (right))
+  or (Operation Less (left) (right)) (Operation Equal (left) (right))
 
 greater :: Expr -> Expr -> Expr
 greater left right = Not (lessOrEqual left right)
@@ -116,4 +116,4 @@ greaterOrEqual left right = Not (Operation Less left right)
 -- i.e.: list[index] = value
 assign :: String -> Expr -> Expr -> Cmd
 assign list index value =
-    If (Literal (Boolean True)) [Delete list index, Insert list index value]
+  If (Literal (Boolean True)) [Delete list index, Insert list index value]
