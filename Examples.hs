@@ -7,11 +7,78 @@ module Examples where
 
 import           CoreLanguage -- Allows writing programs
 import           Interpreter -- Allows running programs `compile <name>`
-
+import           TypeChecker -- Allows running programs `typecheck <name>`
 import           Prelude                 hiding ( and
                                                 , or
                                                 , subtract
                                                 )
+
+badFuncNoExist :: Prog
+badFuncNoExist = [Return (Function "test" [])]
+
+badOperTypes :: Prog
+badOperTypes = [Return (Operation Add (Literal (Int 3)) (Literal (Boolean False)))]
+
+badCastType :: Prog
+badCastType = [Return (Cast (Literal (Int 3)) TIntList)]
+
+badCastValue :: Prog
+badCastValue = [Return (Cast (Literal (String "f")) TBool)]
+
+badVarRef :: Prog
+badVarRef = [Return (Variable "test")]
+
+badElement :: Prog
+badElement = [Return (Element (Literal (IntList [3, 6, 9])) (Literal (Boolean False)))]
+
+badFuncRef :: Prog
+badFuncRef = [Return (Function "test" [])]
+
+badFuncRedeclare :: Prog
+badFuncRedeclare =
+  [ Def "test" (FuncDataCon [] [] TInt [Return (Literal (Int 3))])
+  , Def "test" (FuncDataCon [] [] TInt [Return (Literal (Int 4))])
+  ]
+
+badFuncArgs :: Prog
+badFuncArgs =
+  [ Def "test" (FuncDataCon [] [] TInt [Return (Literal (Int 3))])
+  , Return (Function "test" [(Literal (Int 3))])]
+
+badIfCondition :: Prog
+badIfCondition = [If (Literal (Int 3)) [Return (Literal (Boolean True))]]
+
+badWhileCondition :: Prog
+badWhileCondition = [While (Literal (Int 3)) [Return (Literal (Boolean True))]]
+
+badForEachIterator :: Prog
+badForEachIterator = [ForEach "test" (Literal (Int 3)) [Return (Literal (Boolean True))]]
+
+badInsertIndex :: Prog
+badInsertIndex =
+  [ Set "list" (Literal (IntList [3, 6, 9]))
+  , Insert "list" (Literal (Boolean False)) (Literal (Int 4))
+  ]
+
+badDeleteIndex :: Prog
+badDeleteIndex =
+  [ Set "list" (Literal (IntList [3, 6, 9]))
+  , Delete "list" (Literal (Boolean False))
+  ]
+
+badVarRedeclaration :: Prog
+badVarRedeclaration =
+  [ Set "test" (Literal (Int 4))
+  , Set "test" (Literal (Boolean False))]
+
+badFuncArgTypes :: Prog
+badFuncArgTypes =
+  [ Def "test" (FuncDataCon ["thing"] [TInt] TInt [Return (Variable "thing")])
+  , Return (Function "test" [(Literal (Boolean False))])]
+
+badFuncReturnType :: Prog
+badFuncReturnType = 
+  [ Def "test" (FuncDataCon [] [] TBool [Return (Literal (Int 3))])]
 
 -- An example of a valid program. Run using `run goodProg`
 goodProg :: Prog
