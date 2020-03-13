@@ -473,7 +473,7 @@ run p = prog (ProgState Map.empty Map.empty (prelude ++ p)) -- Adds prelude func
 
 compile :: Prog -> IO ()
 compile p = case typecheck (prelude ++ p) of
-  Result _ -> case run (prelude ++ p) of
+  Result _ -> case run p of
     Result a -> putStrLn (show a)
     -- Error  s -> putStrLn ("Runtime error:\n\n" ++ s)
     Error  s -> putStrLn (trace (prelude ++ p))
