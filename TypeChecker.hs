@@ -110,16 +110,16 @@ exprType _ (Literal (IntList   _)) = Result TIntList
 exprType _ (Literal (FloatList _)) = Result TFltList
 exprType _ (Literal (BoolList  _)) = Result TBoolList
 exprType _ (Literal (String    _)) = Result TString
-exprType (ProgTypeState vars funcs p) (Element name index) =
-  case (Map.lookup name vars, exprType (ProgTypeState vars funcs p) index) of
-    (Just TIntList , Result TInt) -> Result TInt
-    (Just TFltList , Result TInt) -> Result TFlt
-    (Just TBoolList, Result TInt) -> Result TBool
-    (Just TString  , Result TInt) -> Result TChar
-    _                             -> Error ""
-exprType (ProgTypeState vars _ _) (Length name) = case Map.lookup name vars of
-  Just _ -> Result TInt
-  _      -> Error ""
+exprType oldState (Element list index) =
+  case (exprType oldState list, exprType oldState index) of
+    (Result TIntList , Result TInt) -> Result TInt
+    (Result TFltList , Result TInt) -> Result TFlt
+    (Result TBoolList, Result TInt) -> Result TBool
+    (Result TString  , Result TInt) -> Result TChar
+    _                               -> Error ""
+exprType oldState (Length list) = case exprType oldState list of
+  Result x -> Result TInt
+  _        -> Error ""
 exprType oldstate (Concat l1 l2) =
   case (exprType oldstate l1, exprType oldstate l2) of
     (Result TIntList, Result TIntList) -> Result TIntList
