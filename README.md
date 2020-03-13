@@ -2,7 +2,7 @@
 Jonathan Alexander (alexajon), Julian Fortune (fortunej), Faaiq Waqar (waqarf)
 
 ## Language Overview
-Welcome to Barely Functional-C, an *imperitive* language. The goals of this language were to be easy to use in unique ways, including a reduction in side effects via functions, and function level scope.  On top of the core features outlined in the project spec, we implemented Lists, Strings, and a Static Type Checker.
+Welcome to Barely Functional-C, an **imperitive** language. The goals of this language were to be easy to use in unique ways, including a reduction in side effects via functions, and function level scope.  On top of the core features outlined in the project spec, we implemented Lists, Strings, and a Static Type Checker.
 
 ## Execution Instructions
 Open via GHCI 'Examples.hs'
