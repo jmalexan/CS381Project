@@ -81,7 +81,7 @@ factorial =
   , Return (Function "factorial" [Literal (Int 6)]) -- Modify this value to change test different inputs
   ]
 
--- An implementation of quicksort in Barely Functional-C. Run with `run quicksort`
+-- An implementation of quicksort in Barely Functional-C. Run with `compile quicksort`
 quickSort :: Prog
 quickSort =
   [ Def

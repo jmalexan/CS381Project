@@ -135,7 +135,6 @@ exprType oldstate (Concat l1 l2) =
     (Result _, _) -> Error "First expression in concat not list type"
     (_, Result _) -> Error "Second expression in concat not list type"
     (Error s         , _               ) -> Error s
-    (_               , Error s         ) -> Error s
 exprType oldstate (Cast expr newType) = case exprType oldstate expr of
   Result x -> castType x newType
   Error  s -> Error s
