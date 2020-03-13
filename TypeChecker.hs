@@ -216,6 +216,8 @@ progType (ProgTypeState vars funcs (x : xs)) =
 typecheck :: Prog -> Maybe Type
 typecheck p = progType (ProgTypeState Map.empty Map.empty (prelude ++ p)) -- Adds prelude functions
 
+
+-- Compile! uses syntactic sugar combined with logical parsing to find out if your program will work correctly!
 compile :: Prog -> String
 compile p =
   case
@@ -258,7 +260,7 @@ findLine (ProgState vars funcs (x : xs)) c t =
     Result (newstate, Nothing) -> findLine newstate (c + 1) t
     Result (_, Just _) -> []
 
-
+-- Make sure that the parameters have matching types for each parameter passed, otherwise would have unnasigned
 funcTypeAlign :: String -> [String] -> [Type] -> [(Int, String, String)]
 funcTypeAlign name [] [] = []
 funcTypeAlign name (s:ss) [] = [(0, "Parameters passed have inconsistent matching to types", name)]
@@ -295,11 +297,14 @@ newFuncState (ProgState types funcs prog) (s : ss) (t : ts) = case t of
     ss
     ts
 
+-- Use to locate type errors with thte help of the type state checker
 typeLine :: TypeState -> Int -> String -> [(Int, String, String)]
-typeLine (ProgTypeState types funcs (cmd:cmds)) ind fname = case (cmdType (ProgTypeState types funcs cmds) cmd) of
-  Nothing -> [(ind, "Data Type Error Found", fname)] ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
-  Just (newstate, Nothing) -> typeLine newstate (ind + 1) fname
-  Just (_       , Just x ) -> []
+typeLine (ProgTypeState _ _ []) _ _ = []
+typeLine (ProgTypeState types funcs (cmd:cmds)) ind fname = 
+  case (cmdType (ProgTypeState types funcs cmds) cmd) of
+    Nothing -> [(ind, "RunTime Data Type Error Found", fname)] ++ typeLine (ProgTypeState types funcs cmds) (ind + 1) fname
+    Just (newstate, Nothing) -> typeLine newstate (ind + 1) fname
+    Just (_       , Just x ) -> []
 
 -- Make it look nice and like a real readable compiler!
 pretty :: CompileStatus -> String
